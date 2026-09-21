@@ -15,11 +15,12 @@
           "editlog",
           "constraints",
           "pipeline",
+          "ecology",
           "civ",
           "world",
           "renderer"
         ],
-        "note": "User edits flow one way: edit log → constraints → simulation → world layers → renderer."
+        "note": "Edits flow one way: edit log → constraints → physics → ecology → civilization → world layers → renderer."
       },
       {
         "id": "constraint-loop",
@@ -28,10 +29,23 @@
           "editlog",
           "autodraw",
           "importers",
+          "codex",
           "constraints",
           "pipeline"
         ],
-        "note": "Drawn features, auto-drawn sketches and imported coastlines all become constraints the pipeline must honor and explain."
+        "note": "Drawn features, sketches, imported maps and written lore facts all become constraints that get verdicts."
+      },
+      {
+        "id": "fantasy",
+        "label": "Sky, magic & life",
+        "focus": [
+          "astro",
+          "fields",
+          "pipeline",
+          "ecology",
+          "civ"
+        ],
+        "note": "Suns, moons and user-defined fields like oryn shape climate, biomes and species."
       },
       {
         "id": "cloud",
@@ -41,9 +55,10 @@
           "editlog",
           "civ",
           "ai",
-          "exporters"
+          "exporters",
+          "world"
         ],
-        "note": "Storage, sharing, gallery, metered cloud jobs, and the optional AI chronicle."
+        "note": "Storage, sharing, gallery, metered cloud jobs, exports and the optional AI chronicle."
       }
     ]
   },
@@ -66,10 +81,52 @@
       "id": "renderer",
       "type": "frontend",
       "label": "[11] Renderer",
-      "sublabel": "WebGPU globe + maps",
+      "sublabel": "wgpu globe + maps + sky",
       "pos": [
-        960,
+        1130,
         80
+      ],
+      "size": [
+        160,
+        64
+      ]
+    },
+    {
+      "id": "codex",
+      "type": "database",
+      "label": "[16] Codex & Lore",
+      "sublabel": "notes · facts · Obsidian",
+      "pos": [
+        290,
+        250
+      ],
+      "size": [
+        160,
+        64
+      ]
+    },
+    {
+      "id": "astro",
+      "type": "backend",
+      "label": "[13] Astronomy",
+      "sublabel": "suns · moons · calendar",
+      "pos": [
+        500,
+        250
+      ],
+      "size": [
+        160,
+        64
+      ]
+    },
+    {
+      "id": "fields",
+      "type": "backend",
+      "label": "[14] Custom Fields",
+      "sublabel": "oryn · ley lines · rules",
+      "pos": [
+        710,
+        250
       ],
       "size": [
         160,
@@ -83,7 +140,7 @@
       "sublabel": "CRDT-ready ops",
       "pos": [
         80,
-        290
+        420
       ],
       "size": [
         160,
@@ -96,8 +153,8 @@
       "label": "[3] Constraints",
       "sublabel": "feasibility verdicts",
       "pos": [
-        300,
-        290
+        290,
+        420
       ],
       "size": [
         160,
@@ -111,8 +168,22 @@
       "label": "[4] Physical Pipeline",
       "sublabel": "plates→erosion→climate",
       "pos": [
-        520,
-        290
+        500,
+        420
+      ],
+      "size": [
+        160,
+        64
+      ]
+    },
+    {
+      "id": "ecology",
+      "type": "backend",
+      "label": "[15] Ecology & Species",
+      "sublabel": "ranges · races",
+      "pos": [
+        710,
+        420
       ],
       "size": [
         160,
@@ -125,8 +196,8 @@
       "label": "[6] Civilization & Time",
       "sublabel": "history · futures",
       "pos": [
-        740,
-        290
+        920,
+        420
       ],
       "size": [
         160,
@@ -139,8 +210,8 @@
       "label": "[1] World Model",
       "sublabel": "spherical grid layers",
       "pos": [
-        960,
-        290
+        1130,
+        420
       ],
       "size": [
         160,
@@ -154,8 +225,8 @@
       "label": "[5] Auto-Draw",
       "sublabel": "sketch → feature",
       "pos": [
-        300,
-        460
+        290,
+        590
       ],
       "size": [
         160,
@@ -166,10 +237,10 @@
       "id": "importers",
       "type": "backend",
       "label": "[7] Importers",
-      "sublabel": "PNG first",
+      "sublabel": "PNG · Azgaar",
       "pos": [
-        520,
-        460
+        500,
+        590
       ],
       "size": [
         160,
@@ -180,10 +251,10 @@
       "id": "exporters",
       "type": "backend",
       "label": "[8] Exporters",
-      "sublabel": "heightmap · GeoJSON · print",
+      "sublabel": "heightmap · print · md",
       "pos": [
-        960,
-        460
+        1130,
+        590
       ],
       "size": [
         160,
@@ -197,7 +268,7 @@
       "sublabel": "accounts · gallery · jobs",
       "pos": [
         80,
-        640
+        780
       ],
       "size": [
         160,
@@ -211,8 +282,8 @@
       "label": "[12] AI Chronicle",
       "sublabel": "optional · later",
       "pos": [
-        740,
-        640
+        920,
+        780
       ],
       "size": [
         160,
@@ -233,9 +304,13 @@
       "kind": "region",
       "label": "Engine core — Rust → WASM (browser) + native (cloud)",
       "wraps": [
+        "codex",
+        "astro",
+        "fields",
         "editlog",
         "constraints",
         "pipeline",
+        "ecology",
         "civ",
         "world",
         "autodraw",
@@ -261,7 +336,7 @@
       "variant": "emphasis",
       "labelAt": [
         160,
-        217
+        282
       ]
     },
     {
@@ -277,8 +352,14 @@
       "variant": "emphasis"
     },
     {
-      "id": "pipeline-to-civ",
+      "id": "pipeline-to-ecology",
       "from": "pipeline",
+      "to": "ecology",
+      "variant": "emphasis"
+    },
+    {
+      "id": "ecology-to-civ",
+      "from": "ecology",
       "to": "civ",
       "variant": "emphasis"
     },
@@ -294,6 +375,36 @@
       "to": "renderer",
       "label": "layers",
       "variant": "emphasis"
+    },
+    {
+      "id": "lore-facts",
+      "from": "codex",
+      "to": "constraints",
+      "label": "lore facts",
+      "labelAt": [
+        370,
+        367
+      ]
+    },
+    {
+      "id": "astro-to-pipeline",
+      "from": "astro",
+      "to": "pipeline",
+      "label": "light · tides",
+      "labelAt": [
+        580,
+        367
+      ]
+    },
+    {
+      "id": "fields-to-ecology",
+      "from": "fields",
+      "to": "ecology",
+      "label": "field effects",
+      "labelAt": [
+        790,
+        367
+      ]
     },
     {
       "id": "sketch-to-autodraw",
@@ -325,7 +436,7 @@
       "label": "save · sync",
       "labelAt": [
         160,
-        497
+        720
       ]
     },
     {
@@ -335,8 +446,8 @@
       "label": "events",
       "variant": "dashed",
       "labelAt": [
-        820,
-        497
+        1000,
+        720
       ]
     }
   ],
@@ -347,25 +458,25 @@
       "items": [
         "Deterministic: same log + seed + engine version = same world",
         "One-way flow; engine never mutates user edits",
-        "Every stage: grid + constraints → layers + verdicts + events"
+        "Every stage: grid + constraints + field hooks → layers + verdicts + events"
       ]
     },
     {
       "dot": "emerald",
       "title": "Build order (bottom-up)",
       "items": [
-        "1 World Model → 2 Edit Log → 3 Constraints → 4 Pipeline",
-        "7 Importers (PNG) → 11 Renderer → 10 Editor → 9 Services",
-        "5 Auto-Draw → 8 Exporters → 6 Civilization → 12 AI"
+        "1 World → 2 Edit Log → 3 Constraints → 13 Astronomy → 4 Pipeline → 14 Fields",
+        "7 Importers → 11 Renderer → 10 Editor → 9 Services → 5 Auto-Draw",
+        "15 Ecology → 8 Exporters → 16 Codex → 6 Civilization → 12 AI"
       ]
     },
     {
-      "dot": "amber",
-      "title": "Ship first",
+      "dot": "violet",
+      "title": "Flagship world: Aethoria",
       "items": [
-        "Web SaaS; link sharing + public gallery",
-        "Live co-editing later (data model ready)",
-        "Usage metering + credit ledger designed in"
+        "Two suns, three moons, 30-hour day, 390-day year",
+        "Ley lines, oryn vents, magical biomes",
+        "Authored cataclysms; lore facts checked against the map"
       ]
     }
   ]
