@@ -1,0 +1,6 @@
+.DS_Store
+*.plist
+.obsidian/
+node_modules/
+.env
+.env.*
