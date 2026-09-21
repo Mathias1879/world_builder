@@ -1,0 +1,372 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "World_Builder — System Map",
+    "locale": "en",
+    "output": "system-map.html",
+    "quality_profile": "showcase",
+    "views": [
+      {
+        "id": "main-flow",
+        "label": "One-way data flow",
+        "focus": [
+          "editor",
+          "editlog",
+          "constraints",
+          "pipeline",
+          "civ",
+          "world",
+          "renderer"
+        ],
+        "note": "User edits flow one way: edit log → constraints → simulation → world layers → renderer."
+      },
+      {
+        "id": "constraint-loop",
+        "label": "Constraints & feasibility",
+        "focus": [
+          "editlog",
+          "autodraw",
+          "importers",
+          "constraints",
+          "pipeline"
+        ],
+        "note": "Drawn features, auto-drawn sketches and imported coastlines all become constraints the pipeline must honor and explain."
+      },
+      {
+        "id": "cloud",
+        "label": "Cloud & product",
+        "focus": [
+          "services",
+          "editlog",
+          "civ",
+          "ai",
+          "exporters"
+        ],
+        "note": "Storage, sharing, gallery, metered cloud jobs, and the optional AI chronicle."
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "editor",
+      "type": "frontend",
+      "label": "[10] Editor UI",
+      "sublabel": "draw · planet · report",
+      "pos": [
+        80,
+        80
+      ],
+      "size": [
+        160,
+        64
+      ]
+    },
+    {
+      "id": "renderer",
+      "type": "frontend",
+      "label": "[11] Renderer",
+      "sublabel": "WebGPU globe + maps",
+      "pos": [
+        960,
+        80
+      ],
+      "size": [
+        160,
+        64
+      ]
+    },
+    {
+      "id": "editlog",
+      "type": "database",
+      "label": "[2] Edit Log",
+      "sublabel": "CRDT-ready ops",
+      "pos": [
+        80,
+        290
+      ],
+      "size": [
+        160,
+        64
+      ]
+    },
+    {
+      "id": "constraints",
+      "type": "security",
+      "label": "[3] Constraints",
+      "sublabel": "feasibility verdicts",
+      "pos": [
+        300,
+        290
+      ],
+      "size": [
+        160,
+        64
+      ],
+      "tag": "override-able"
+    },
+    {
+      "id": "pipeline",
+      "type": "backend",
+      "label": "[4] Physical Pipeline",
+      "sublabel": "plates→erosion→climate",
+      "pos": [
+        520,
+        290
+      ],
+      "size": [
+        160,
+        64
+      ]
+    },
+    {
+      "id": "civ",
+      "type": "backend",
+      "label": "[6] Civilization & Time",
+      "sublabel": "history · futures",
+      "pos": [
+        740,
+        290
+      ],
+      "size": [
+        160,
+        64
+      ]
+    },
+    {
+      "id": "world",
+      "type": "database",
+      "label": "[1] World Model",
+      "sublabel": "spherical grid layers",
+      "pos": [
+        960,
+        290
+      ],
+      "size": [
+        160,
+        64
+      ],
+      "tag": "foundation"
+    },
+    {
+      "id": "autodraw",
+      "type": "backend",
+      "label": "[5] Auto-Draw",
+      "sublabel": "sketch → feature",
+      "pos": [
+        300,
+        460
+      ],
+      "size": [
+        160,
+        64
+      ]
+    },
+    {
+      "id": "importers",
+      "type": "backend",
+      "label": "[7] Importers",
+      "sublabel": "PNG first",
+      "pos": [
+        520,
+        460
+      ],
+      "size": [
+        160,
+        64
+      ]
+    },
+    {
+      "id": "exporters",
+      "type": "backend",
+      "label": "[8] Exporters",
+      "sublabel": "heightmap · GeoJSON · print",
+      "pos": [
+        960,
+        460
+      ],
+      "size": [
+        160,
+        64
+      ]
+    },
+    {
+      "id": "services",
+      "type": "cloud",
+      "label": "[9] Services",
+      "sublabel": "accounts · gallery · jobs",
+      "pos": [
+        80,
+        640
+      ],
+      "size": [
+        160,
+        64
+      ],
+      "tag": "metering + credits"
+    },
+    {
+      "id": "ai",
+      "type": "external",
+      "label": "[12] AI Chronicle",
+      "sublabel": "optional · later",
+      "pos": [
+        740,
+        640
+      ],
+      "size": [
+        160,
+        64
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "Front end — TypeScript / React",
+      "wraps": [
+        "editor",
+        "renderer"
+      ]
+    },
+    {
+      "kind": "region",
+      "label": "Engine core — Rust → WASM (browser) + native (cloud)",
+      "wraps": [
+        "editlog",
+        "constraints",
+        "pipeline",
+        "civ",
+        "world",
+        "autodraw",
+        "importers",
+        "exporters"
+      ]
+    },
+    {
+      "kind": "region",
+      "label": "Backend / cloud",
+      "wraps": [
+        "services",
+        "ai"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "edit-ops",
+      "from": "editor",
+      "to": "editlog",
+      "label": "edit ops",
+      "variant": "emphasis",
+      "labelAt": [
+        160,
+        217
+      ]
+    },
+    {
+      "id": "log-to-constraints",
+      "from": "editlog",
+      "to": "constraints",
+      "variant": "emphasis"
+    },
+    {
+      "id": "constraints-to-pipeline",
+      "from": "constraints",
+      "to": "pipeline",
+      "variant": "emphasis"
+    },
+    {
+      "id": "pipeline-to-civ",
+      "from": "pipeline",
+      "to": "civ",
+      "variant": "emphasis"
+    },
+    {
+      "id": "civ-to-world",
+      "from": "civ",
+      "to": "world",
+      "variant": "emphasis"
+    },
+    {
+      "id": "world-to-renderer",
+      "from": "world",
+      "to": "renderer",
+      "label": "layers",
+      "variant": "emphasis"
+    },
+    {
+      "id": "sketch-to-autodraw",
+      "from": "editlog",
+      "to": "autodraw",
+      "label": "sketches",
+      "variant": "dashed"
+    },
+    {
+      "id": "autodraw-to-constraints",
+      "from": "autodraw",
+      "to": "constraints"
+    },
+    {
+      "id": "import-to-constraints",
+      "from": "importers",
+      "to": "constraints",
+      "label": "coastline"
+    },
+    {
+      "id": "world-to-exporters",
+      "from": "world",
+      "to": "exporters"
+    },
+    {
+      "id": "services-sync",
+      "from": "services",
+      "to": "editlog",
+      "label": "save · sync",
+      "labelAt": [
+        160,
+        497
+      ]
+    },
+    {
+      "id": "civ-events",
+      "from": "civ",
+      "to": "ai",
+      "label": "events",
+      "variant": "dashed",
+      "labelAt": [
+        820,
+        497
+      ]
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Invariants",
+      "items": [
+        "Deterministic: same log + seed + engine version = same world",
+        "One-way flow; engine never mutates user edits",
+        "Every stage: grid + constraints → layers + verdicts + events"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Build order (bottom-up)",
+      "items": [
+        "1 World Model → 2 Edit Log → 3 Constraints → 4 Pipeline",
+        "7 Importers (PNG) → 11 Renderer → 10 Editor → 9 Services",
+        "5 Auto-Draw → 8 Exporters → 6 Civilization → 12 AI"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Ship first",
+      "items": [
+        "Web SaaS; link sharing + public gallery",
+        "Live co-editing later (data model ready)",
+        "Usage metering + credit ledger designed in"
+      ]
+    }
+  ]
+}
