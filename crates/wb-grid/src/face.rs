@@ -52,7 +52,7 @@ impl Face {
 }
 
 /// Equi-angular face coordinates → unit vector. `s`/`t` beyond ±1 (up to < 2)
-/// land on the neighbouring face, which neighbour lookup relies on.
+/// land on the neighbouring face.
 pub fn face_to_sphere(face: Face, s: f64, t: f64) -> Vec3 {
     let (n, u, v) = face.basis();
     let a = libm::tan(FRAC_PI_4 * s);

@@ -60,7 +60,7 @@ fn face_strategy() -> impl Strategy<Value = Face> {
 }
 
 fn cell_strategy() -> impl Strategy<Value = CellId> {
-    (face_strategy(), 0u8..=8).prop_flat_map(|(face, level)| {
+    (face_strategy(), 0u8..=MAX_LEVEL).prop_flat_map(|(face, level)| {
         let m = cells_per_edge(level);
         (0..m, 0..m).prop_map(move |(i, j)| CellId::new(face, level, i, j).unwrap())
     })
