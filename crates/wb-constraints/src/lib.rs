@@ -18,7 +18,7 @@ pub use checker::{
 };
 pub use error::ConstraintError;
 pub use evaluate::{evaluate, realism_of};
-pub use geo::{centroid, contains, midpoint, samples};
+pub use geo::{bbox, bbox_contains, centroid, contains, midpoint, samples};
 pub use grade::{effective_realism, grade, make_verdict};
 pub use kinds::{
     CONSTRAINT_KINDS, entity, float, is_constraint_kind, line, point, polygon, register_kinds,

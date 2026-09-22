@@ -1,4 +1,4 @@
-use core::f64::consts::PI;
+use core::f64::consts::{FRAC_PI_2, PI};
 use wb_grid::{LatLon, Vec3};
 
 /// Degenerate below this vector length: the summed direction carries no information.
@@ -92,4 +92,70 @@ pub fn contains(ring: &[LatLon], p: LatLon) -> bool {
         total += libm::atan2(pv.dot(a.cross(b)), a.dot(b));
     }
     total.abs() > PI
+}
+
+/// Latitude/longitude bounding box of a ring, in radians: `(min_lat, max_lat, min_lon,
+/// max_lon)`. `None` for fewer than 3 points, matching [`contains`].
+///
+/// This is a **prefilter**, not a second point-in-polygon test. Its one guarantee is
+/// conservatism: whenever `contains(ring, p)` is true, `bbox_contains(bbox(ring)?, p)`
+/// is also true. It may well answer true for points `contains` rejects — that costs a
+/// winding test, not a wrong verdict. A proptest over random rings and points pins the
+/// implication down.
+///
+/// Two spherical subtleties make the naive vertex min/max unsound, and both are
+/// handled here:
+///
+/// - **Great-circle edges bulge poleward** of their endpoints, so a point can be inside
+///   the ring at a higher latitude than any vertex. Latitude is 1-Lipschitz in angular
+///   distance and every point of an edge lies within half that edge's length of an
+///   endpoint, so the latitude bounds are padded by half the longest edge. The edge
+///   length is bounded above by `|Δlat| + |Δlon|` — the lat-then-lon detour is never
+///   shorter than the geodesic — which keeps the prefilter free of transcendental math.
+/// - **Rings that wrap.** If the vertex longitudes span more than π, the ring either
+///   crosses the antimeridian or encloses a pole; in the pole case its latitudes reach
+///   beyond every vertex's, no matter how the box is padded. Rather than guess which,
+///   the box degrades to the whole sphere, so the prefilter simply stops filtering for
+///   those rings instead of rejecting a true hit.
+///
+/// Assumes canonical coordinates — `lat` in [−π/2, π/2], `lon` in (−π, π] — as the Edit
+/// Log's value canonicalization produces. Never panics.
+pub fn bbox(ring: &[LatLon]) -> Option<(f64, f64, f64, f64)> {
+    if ring.len() < 3 {
+        return None;
+    }
+    let mut min_lat = f64::INFINITY;
+    let mut max_lat = f64::NEG_INFINITY;
+    let mut min_lon = f64::INFINITY;
+    let mut max_lon = f64::NEG_INFINITY;
+    for p in ring {
+        min_lat = min_lat.min(p.lat);
+        max_lat = max_lat.max(p.lat);
+        min_lon = min_lon.min(p.lon);
+        max_lon = max_lon.max(p.lon);
+    }
+    if !(min_lat.is_finite() && max_lat.is_finite() && min_lon.is_finite() && max_lon.is_finite()) {
+        return Some((-FRAC_PI_2, FRAC_PI_2, -PI, PI));
+    }
+    if max_lon - min_lon > PI {
+        return Some((-FRAC_PI_2, FRAC_PI_2, -PI, PI));
+    }
+    let mut pad: f64 = 0.0;
+    for (i, a) in ring.iter().enumerate() {
+        let b = ring[(i + 1) % ring.len()];
+        pad = pad.max(((a.lat - b.lat).abs() + (a.lon - b.lon).abs()) * 0.5);
+    }
+    Some((
+        (min_lat - pad).max(-FRAC_PI_2),
+        (max_lat + pad).min(FRAC_PI_2),
+        min_lon,
+        max_lon,
+    ))
+}
+
+/// Is `p` inside the box `(min_lat, max_lat, min_lon, max_lon)` from [`bbox`]?
+/// Bounds are inclusive. Never panics.
+pub fn bbox_contains(b: (f64, f64, f64, f64), p: LatLon) -> bool {
+    let (min_lat, max_lat, min_lon, max_lon) = b;
+    p.lat >= min_lat && p.lat <= max_lat && p.lon >= min_lon && p.lon <= max_lon
 }

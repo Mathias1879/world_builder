@@ -1,5 +1,5 @@
 use crate::checker::{CheckContext, Checker, ConstraintView, KindPattern};
-use crate::geo::{centroid, contains};
+use crate::geo::{bbox, bbox_contains, centroid, contains};
 use crate::kinds::{polygon, shape, text};
 use crate::model::{Finding, Param};
 
@@ -28,6 +28,12 @@ impl Checker for RegionRulesCheck {
             return Vec::new();
         };
         let banned = forbidden(rule);
+        // One bounding box per rule, reused for every candidate: this turns the scan
+        // from an O(ring) winding test per candidate into four comparisons for the
+        // ones that are nowhere near. `bbox` never rejects a point `contains` accepts.
+        let Some(box_) = bbox(ring) else {
+            return Vec::new();
+        };
         let mut out = Vec::new();
         for other in ctx.state.live() {
             let Some(kind) = other.kind() else { continue };
@@ -37,7 +43,7 @@ impl Checker for RegionRulesCheck {
             let Some(center) = shape(&other).and_then(|(pts, _)| centroid(&pts)) else {
                 continue;
             };
-            if contains(ring, center) {
+            if bbox_contains(box_, center) && contains(ring, center) {
                 out.push(
                     Finding::issue(self.id(), "rule.forbidden_feature", 0.6)
                         .with_param("feature_kind", Param::Text(kind.to_string()))

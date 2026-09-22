@@ -1,5 +1,5 @@
 use crate::checker::{CheckContext, Checker, ConstraintView, KindPattern};
-use crate::geo::contains;
+use crate::geo::{bbox, bbox_contains, contains};
 use crate::kinds::{line, polygon};
 use crate::model::Finding;
 use wb_grid::LatLon;
@@ -12,7 +12,10 @@ fn in_a_lake(ctx: &CheckContext<'_>, p: LatLon) -> bool {
         .live()
         .filter(|e| e.kind() == Some("feature.lake"))
         .filter_map(|e| polygon(&e, "area"))
-        .any(|ring| contains(ring, p))
+        // Bounding-box prefilter: most lakes are nowhere near this mouth, and the box
+        // costs a few comparisons per vertex against the winding test's `atan2`.
+        // `bbox` never rejects a point `contains` accepts, so the answer is unchanged.
+        .any(|ring| bbox(ring).is_some_and(|b| bbox_contains(b, p)) && contains(ring, p))
 }
 
 impl Checker for RiverMouthCheck {
