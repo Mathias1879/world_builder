@@ -96,7 +96,6 @@ impl fmt::Debug for EditLog {
 }
 
 /// Truncates a label to `MAX_LABEL_BYTES` at a char boundary (for generated labels).
-#[allow(dead_code)]
 pub(crate) fn clip_label(s: String) -> String {
     if s.len() <= MAX_LABEL_BYTES {
         return s;

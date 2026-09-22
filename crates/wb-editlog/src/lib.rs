@@ -1,6 +1,7 @@
 //! Edit Log: the operation graph that is the only durable truth about a world.
 
 mod error;
+mod history;
 mod ids;
 mod log;
 mod op;
