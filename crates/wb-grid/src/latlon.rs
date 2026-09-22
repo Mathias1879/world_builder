@@ -3,6 +3,7 @@ use crate::vec3::Vec3;
 /// Geographic coordinate in radians. `lat` in [-π/2, π/2], `lon` in (-π, π].
 /// Convention: z = north pole, x = (0°, 0°), y = (0°, 90°E).
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct LatLon {
     pub lat: f64,
     pub lon: f64,

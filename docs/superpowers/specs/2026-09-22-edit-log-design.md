@@ -29,8 +29,8 @@ The Edit Log is the only durable truth about a world. It records every user acti
 | `ActorId` | `[u8; 16]` | One per device/session; supplied by the caller (the log never generates randomness). |
 | `AuthorId` | `[u8; 16]` | The human account/profile; display name lives in file META. |
 | `OpId` | `{ lamport: u64, actor: ActorId }` | Total order: `lamport`, then `actor` bytes. |
-| `EntityId` | `OpId` of the transaction that created the entity | Globally unique without coordination. |
-| `EntityId::PLANET` | `OpId { lamport: 0, actor: [0; 16] }` | Reserved singleton for planet parameters. Exists implicitly: writes to it need no `create`, it cannot be deleted, and materialized state always contains it with `kind = "planet"`. |
+| `EntityId` | `{ op: OpId, n: u32 }` — the `n`-th entity created by transaction `op` | Globally unique without coordination; one transaction can create many entities (e.g. an import). |
+| `EntityId::PLANET` | `{ op: OpId { lamport: 0, actor: [0; 16] }, n: 0 }` | Reserved singleton for planet parameters. Exists implicitly: writes to it need no `create`, it cannot be deleted, and materialized state always contains it with `kind = "planet"`. |
 | `FieldKey` | UTF-8 string, 1–64 bytes, `[a-z0-9_.]` | e.g. `spine`, `peak_m`, `axial_tilt_deg`. |
 | `EntityKind` | UTF-8 string, 1–64 bytes, dotted namespace `[a-z0-9_.]` | e.g. `feature.mountain_range`, `civ.settlement`. Stored as the reserved field `kind`. |
 | `VersionId` | `{ actor: ActorId, seq: u32 }` — `seq` counts versions saved by that actor | Versions are metadata, not ops; unique without coordination. |
@@ -66,7 +66,7 @@ Op {
 FieldWrite { entity: EntityId, field: FieldKey, value: Value }
 ```
 
-One `Op` is one transaction and one undo step. Creating an entity = writes whose `entity` is the new op's own id, including `kind`. Deleting = write `deleted = Bool(true)`; undelete = write `deleted = Null`.
+One `Op` is one transaction and one undo step. Creating an entity = writes whose `entity.op` is the new op's own id, including `kind`. Deleting = write `deleted = Bool(true)`; undelete = write `deleted = Null`.
 
 ### 3.4 Materialization (last-writer-wins per field)
 
@@ -101,7 +101,7 @@ Owning subsystems register a `Validator` per `EntityKind` (`fn validate(&EntityV
 ### 4.2 Named versions
 
 - `save_version(name)` records `{ id, name, heads: current branch heads, branch, time_ms, author }` in metadata. No ops are copied.
-- `view_version(id) -> StateView` materializes read-only at that version's heads.
+- `view_version(id) -> State` materializes read-only at that version's heads.
 - `restore_version(id)` commits one `TxKind::Restore(id)` transaction on the current branch whose writes turn the current state into the version's state (fields that differ get the version's value; fields absent in the version get `Null`). History is preserved; the restore itself is undoable.
 
 ### 4.3 Undo / redo
@@ -151,7 +151,7 @@ Saving is deterministic: the same log always produces identical bytes.
 
 ### 5.3 Browser contract (implemented by Editor [10])
 
-The editor persists each committed op as its own record (so work is never "unsaved") and uses `to_bytes()`/`from_bytes()` for export/import. The crate exposes `ops_since(heads)` and `apply_ops(ops)` for that incremental persistence.
+The editor persists each committed op as its own record (so work is never "unsaved") and uses `to_bytes()`/`from_bytes()` for export/import. The crate exposes `ops_since(heads)` and `apply_ops(ops)` for that incremental persistence. Received ops extend the current branch: its heads become the maximal ops (those not ancestors of another) of (current heads ∪ incoming leaves); other branches are unchanged.
 
 ### 5.4 Size
 
@@ -170,7 +170,7 @@ log.transact(label) -> Transaction            // builder
 log.undo() / log.redo() -> Result<OpId, EditError>
 log.fork(name, From) / log.switch(name) / log.branches() / log.current_branch()
 log.save_version(name) -> VersionId / log.versions()
-log.view_version(id) -> Result<StateView, EditError> / log.restore_version(id) -> Result<OpId, EditError>
+log.view_version(id) -> Result<State, EditError> / log.restore_version(id) -> Result<OpId, EditError>
 log.state() -> &State / log.source_hash() -> SourceHash
 log.timeline(branch) -> Vec<TimelineEntry>
 log.add_asset(media_type, bytes) -> AssetRef / log.asset(r) -> Option<&[u8]>
@@ -183,7 +183,7 @@ log.to_bytes() -> Vec<u8> / EditLog::from_bytes(bytes, actor, author, clock) -> 
 ## 7. Errors
 
 `EditError` (implements `Display` + `Error`; the crate never panics on user input):
-`InvalidValue { field, reason }`, `InvalidKey`, `ValidationFailed { entity, kind, reason }`, `UnknownEntity(EntityId)`, `EmptyTransaction`, `UnknownParent(OpId)`, `DuplicateOp(OpId)`, `NothingToUndo`, `NothingToRedo`, `BranchExists(String)`, `UnknownBranch(String)`, `UnknownVersion(VersionId)`, `UnknownAsset(AssetRef)`, `CorruptFile { section }`, `UnsupportedFormat { found: u16 }`.
+`InvalidValue { field, reason }`, `InvalidKey`, `InvalidName(String)`, `ValidationFailed { entity, kind, reason }`, `UnknownEntity(EntityId)`, `EmptyTransaction`, `UnknownParent(OpId)`, `DuplicateOp(OpId)`, `NothingToUndo`, `NothingToRedo`, `BranchExists(String)`, `UnknownBranch(String)`, `UnknownVersion(VersionId)`, `UnknownAsset(AssetRef)`, `CorruptFile { section }`, `UnsupportedFormat { found: u16 }`.
 
 ## 8. Determinism
 
