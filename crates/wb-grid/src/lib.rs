@@ -1,5 +1,6 @@
 //! Spherical grid: an equi-angular cube-sphere split into quadtree tiles.
 
+mod area;
 mod cell;
 mod face;
 mod latlon;
