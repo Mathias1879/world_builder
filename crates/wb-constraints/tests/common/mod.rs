@@ -5,7 +5,11 @@ use wb_grid::LatLon;
 use wb_world::Geometry;
 
 pub fn new_log() -> EditLog {
-    let mut log = EditLog::new(ActorId([1; 16]), AuthorId([9; 16]), Box::new(FixedClock(1_758_000_000_000)));
+    let mut log = EditLog::new(
+        ActorId([1; 16]),
+        AuthorId([9; 16]),
+        Box::new(FixedClock(1_758_000_000_000)),
+    );
     register_kinds(&mut log);
     log
 }
@@ -22,11 +26,15 @@ pub fn d(lat: f64, lon: f64) -> LatLon {
 }
 
 pub fn poly(pts: &[(f64, f64)]) -> Value {
-    Value::Geometry(Geometry::Polygon(pts.iter().map(|&(a, b)| d(a, b)).collect()))
+    Value::Geometry(Geometry::Polygon(
+        pts.iter().map(|&(a, b)| d(a, b)).collect(),
+    ))
 }
 
 pub fn line(pts: &[(f64, f64)]) -> Value {
-    Value::Geometry(Geometry::LineString(pts.iter().map(|&(a, b)| d(a, b)).collect()))
+    Value::Geometry(Geometry::LineString(
+        pts.iter().map(|&(a, b)| d(a, b)).collect(),
+    ))
 }
 
 /// Lat/lon box as a polygon with a vertex every 1° along each edge (close to a true lat/lon box).
