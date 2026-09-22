@@ -7,3 +7,5 @@ cargo test --workspace
 cargo test --workspace --target wasm32-wasip1
 cargo test --release -p wb-editlog --test perf
 cargo test --release -p wb-editlog --test perf --target wasm32-wasip1
+cargo test --release -p wb-constraints --test perf
+cargo test --release -p wb-constraints --test perf --target wasm32-wasip1
