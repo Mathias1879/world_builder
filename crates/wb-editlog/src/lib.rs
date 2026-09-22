@@ -2,6 +2,7 @@
 
 mod branch;
 mod error;
+mod file;
 mod history;
 mod ids;
 mod log;
@@ -12,6 +13,7 @@ mod value;
 
 pub use branch::{ForkFrom, TimelineEntry};
 pub use error::EditError;
+pub use file::{FORMAT_VERSION, SaveOptions};
 pub use ids::{
     ActorId, AssetRef, AuthorId, DELETED, EntityId, EntityKind, FieldKey, KIND, OpId, VersionId,
 };
