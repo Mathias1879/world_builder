@@ -19,8 +19,16 @@ fn put_tile_id(h: &mut blake3::Hasher, t: TileId) {
     h.update(&t.y.to_le_bytes());
 }
 
+/// Canonical quiet NaN hashed for every f64 NaN (sign and payload vary by target).
+const CANONICAL_NAN_F64: u64 = 0x7FF8_0000_0000_0000;
+
 fn put_f64(h: &mut blake3::Hasher, v: f64) {
-    h.update(&v.to_bits().to_le_bytes());
+    let bits = if v.is_nan() {
+        CANONICAL_NAN_F64
+    } else {
+        v.to_bits()
+    };
+    h.update(&bits.to_le_bytes());
 }
 
 fn put_points(h: &mut blake3::Hasher, pts: &[LatLon]) {

@@ -40,7 +40,28 @@ macro_rules! cell_value {
     };
 }
 
-cell_value!(f32, Dtype::F32, 4);
+/// Canonical quiet NaN written for every f32 NaN, so the encoding (and hash)
+/// does not depend on a target's NaN sign or payload.
+const CANONICAL_NAN_F32: u32 = 0x7FC0_0000;
+
+impl CellValue for f32 {
+    const DTYPE: Dtype = Dtype::F32;
+    const BYTES: usize = 4;
+    fn write_le(self, out: &mut Vec<u8>) {
+        let bits = if self.is_nan() {
+            CANONICAL_NAN_F32
+        } else {
+            self.to_bits()
+        };
+        out.extend_from_slice(&bits.to_le_bytes());
+    }
+    fn read_le(bytes: &[u8]) -> Self {
+        let mut a = [0u8; 4];
+        a.copy_from_slice(&bytes[..4]);
+        f32::from_le_bytes(a)
+    }
+}
+
 cell_value!(u8, Dtype::U8, 1);
 cell_value!(u16, Dtype::U16, 2);
 cell_value!(i16, Dtype::I16, 2);

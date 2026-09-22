@@ -51,3 +51,20 @@ fn content_hash_tracks_content() {
     t.set(3, 4, 9);
     assert_ne!(t.content_hash(), h0);
 }
+
+#[test]
+fn nan_bit_patterns_encode_identically() {
+    let nans = [f32::NAN, -f32::NAN, f32::from_bits(0x7FC0_1234)];
+    let tiles: Vec<Tile<f32>> = nans
+        .iter()
+        .map(|&nan| Tile::from_fn(tid(), |i, j| if (i + j) % 7 == 0 { nan } else { i as f32 }))
+        .collect();
+    let bytes = tiles[0].encode();
+    for t in &tiles[1..] {
+        assert_eq!(t.encode(), bytes);
+        assert_eq!(t.content_hash(), tiles[0].content_hash());
+    }
+    let decoded = Tile::<f32>::decode(&bytes).unwrap();
+    assert!(decoded.get(0, 0).is_nan());
+    assert_eq!(decoded.get(1, 0), 1.0);
+}

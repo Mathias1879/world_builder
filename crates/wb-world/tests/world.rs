@@ -85,3 +85,22 @@ fn typed_layer_access() {
         WorldError::UnknownLayer(wb_world::LayerId(99))
     );
 }
+
+#[test]
+fn world_hash_canonicalizes_nan() {
+    use wb_grid::LatLon;
+    use wb_world::{Feature, FeatureId, Geometry, world_hash};
+    let hash_with = |lat: f64| {
+        let mut w = World::new(Planet::default(), Extent::Planet);
+        w.features.insert(Feature {
+            id: FeatureId(1),
+            kind: "probe".into(),
+            geometry: Geometry::Point(LatLon { lat, lon: 0.0 }),
+        });
+        world_hash(&w)
+    };
+    let h = hash_with(f64::NAN);
+    assert_eq!(hash_with(-f64::NAN), h);
+    assert_eq!(hash_with(f64::from_bits(0x7FF8_0000_0000_1234)), h);
+    assert_ne!(hash_with(0.0), h);
+}
