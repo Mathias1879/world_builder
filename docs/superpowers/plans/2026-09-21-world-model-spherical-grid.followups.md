@@ -41,7 +41,8 @@ should pick it up.
 - `TileId::all(high level)` allocates ~1.6 GB at level 12 — document or iterate lazily.
 
 **CI**
-- Replace `rustup show` with explicit `rustup toolchain install` (rustup ≥ 1.28 no longer auto-installs via `show`).
+- GitHub Actions is manual-only until alpha/beta (no paid services); `scripts/ci-local.sh` is the merge gate.
+- If Actions is re-enabled: replace `rustup show` with explicit `rustup toolchain install` (rustup ≥ 1.28 no longer auto-installs via `show`).
 
 **Tests / polish (low priority)**
 - Mode third tie-break (equal count + area) untested; `pick_max` self-compares `v[0]`.
