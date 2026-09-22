@@ -328,6 +328,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "wb-constraints"
+version = "0.1.0"
+dependencies = [
+ "blake3",
+ "libm",
+ "postcard",
+ "proptest",
+ "serde",
+ "wb-editlog",
+ "wb-grid",
+ "wb-world",
+]
+
+[[package]]
 name = "wb-editlog"
 version = "0.1.0"
 dependencies = [

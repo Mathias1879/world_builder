@@ -117,3 +117,19 @@ fn conversions() {
     assert_eq!(Value::from(2.5), Value::Float(2.5));
     assert_eq!(Value::from("hi"), Value::Text("hi".into()));
 }
+
+#[test]
+fn entity_references_are_values() {
+    let e = wb_editlog::EntityId {
+        op: wb_editlog::OpId {
+            lamport: 3,
+            actor: wb_editlog::ActorId([2; 16]),
+        },
+        n: 1,
+    };
+    let v = Value::from(e);
+    assert_eq!(v, Value::Entity(e));
+    assert_eq!(v.clone().canonical("subject").unwrap(), v);
+    let bytes = postcard::to_allocvec(&v).unwrap();
+    assert_eq!(postcard::from_bytes::<Value>(&bytes).unwrap(), v);
+}
