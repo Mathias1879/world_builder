@@ -150,7 +150,7 @@ impl EditLog {
                 value,
             })
             .collect();
-        let op_id = self.next_id();
+        let op_id = self.next_id()?;
         self.commit_op(
             op_id,
             TxKind::Restore(id),

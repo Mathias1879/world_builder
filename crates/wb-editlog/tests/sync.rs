@@ -166,3 +166,71 @@ fn apply_ops_updates_modified_time() {
     assert_eq!(c.modified_ms(), common::T0 + 500);
     assert_eq!(c.ops_since(&BTreeSet::new()).len(), 1);
 }
+
+// --- Final fix 2: lamport values are bounded so `next_id` can never overflow.
+
+fn corrupt_ops() -> EditError {
+    EditError::CorruptFile {
+        section: "OPS".into(),
+    }
+}
+
+/// A root op (no parents) from actor B writing one planet field.
+fn root_op(lamport: u64) -> Op {
+    let (a, _, e) = seeded_pair();
+    let mut op = a.op(e.op).unwrap().clone();
+    op.id = wb_editlog::OpId {
+        lamport,
+        actor: ACTOR_B,
+    };
+    op.parents = BTreeSet::new();
+    op.writes = vec![wb_editlog::FieldWrite {
+        entity: EntityId::PLANET,
+        field: wb_editlog::FieldKey::new("tilt").unwrap(),
+        value: Value::Int(1),
+    }];
+    op
+}
+
+fn assert_unchanged(log: &EditLog, ops: usize, heads: &BTreeSet<wb_editlog::OpId>) {
+    assert_eq!(
+        log.ops_since(&BTreeSet::new()).len(),
+        ops,
+        "no op was added"
+    );
+    assert_eq!(log.heads(), heads, "heads unchanged");
+}
+
+#[test]
+fn apply_ops_rejects_lamport_max() {
+    let (_, mut b, _) = seeded_pair();
+    let heads = b.heads().clone();
+    assert_eq!(
+        b.apply_ops(vec![root_op(u64::MAX)]).unwrap_err(),
+        corrupt_ops()
+    );
+    assert_unchanged(&b, 1, &heads);
+}
+
+#[test]
+fn apply_ops_rejects_lamport_zero() {
+    let (_, mut b, _) = seeded_pair();
+    let heads = b.heads().clone();
+    assert_eq!(b.apply_ops(vec![root_op(0)]).unwrap_err(), corrupt_ops());
+    assert_unchanged(&b, 1, &heads);
+}
+
+#[test]
+fn a_full_log_refuses_new_commits_with_log_full() {
+    let mut c = new_log_as(wb_editlog::ActorId([7; 16]));
+    c.apply_ops(vec![root_op(u64::MAX - 1)]).unwrap();
+    let heads = c.heads().clone();
+    let mut tx = c.transact("one more");
+    tx.set(EntityId::PLANET, "tilt", 2i64);
+    assert_eq!(tx.commit().unwrap_err(), EditError::LogFull);
+    assert_unchanged(&c, 1, &heads);
+    assert_eq!(
+        EditError::LogFull.to_string(),
+        "edit log has reached its maximum length"
+    );
+}

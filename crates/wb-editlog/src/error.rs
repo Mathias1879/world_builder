@@ -31,6 +31,8 @@ pub enum EditError {
     UnsupportedFormat {
         found: u16,
     },
+    /// Lamport clock or version sequence exhausted; no further ops or versions fit.
+    LogFull,
 }
 
 impl fmt::Display for EditError {
@@ -69,6 +71,7 @@ impl fmt::Display for EditError {
                     "project file format {found} is newer than this app supports"
                 )
             }
+            EditError::LogFull => f.write_str("edit log has reached its maximum length"),
         }
     }
 }

@@ -207,11 +207,16 @@ impl EditLog {
             .expect("current branch always exists")
     }
 
-    pub(crate) fn next_id(&self) -> OpId {
-        OpId {
+    /// The id for the next local op, or `LogFull` once the Lamport clock is exhausted
+    /// (received ops never carry `u64::MAX`, so the last usable value is `u64::MAX - 1`).
+    pub(crate) fn next_id(&self) -> Result<OpId, EditError> {
+        if self.max_lamport >= u64::MAX - 1 {
+            return Err(EditError::LogFull);
+        }
+        Ok(OpId {
             lamport: self.max_lamport + 1,
             actor: self.actor,
-        }
+        })
     }
 
     fn validate(&self, writes: &[FieldWrite]) -> Result<(), EditError> {
@@ -322,7 +327,17 @@ pub struct Transaction<'a> {
 
 impl<'a> Transaction<'a> {
     fn new(log: &'a mut EditLog, label: &str, kind: TxKind) -> Self {
-        let id = log.next_id();
+        let (id, error) = match log.next_id() {
+            Ok(id) => (id, None),
+            // Placeholder id; `commit` reports the error before it is ever used.
+            Err(e) => (
+                OpId {
+                    lamport: u64::MAX,
+                    actor: log.actor,
+                },
+                Some(e),
+            ),
+        };
         Transaction {
             log,
             id,
@@ -330,7 +345,7 @@ impl<'a> Transaction<'a> {
             kind,
             writes: BTreeMap::new(),
             created: 0,
-            error: None,
+            error,
         }
     }
 

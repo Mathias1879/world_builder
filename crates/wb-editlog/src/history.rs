@@ -39,7 +39,7 @@ impl EditLog {
                     .unwrap_or(Value::Null),
             })
             .collect();
-        let id = self.next_id();
+        let id = self.next_id()?;
         self.commit_op(
             id,
             TxKind::Undo(x),
@@ -68,7 +68,7 @@ impl EditLog {
             .get(&x)
             .expect("redo stack only holds known ops")
             .clone();
-        let id = self.next_id();
+        let id = self.next_id()?;
         self.commit_op(
             id,
             TxKind::Redo(x),

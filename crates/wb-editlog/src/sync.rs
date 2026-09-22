@@ -13,6 +13,11 @@ fn corrupt() -> EditError {
 
 /// Structural checks every received or loaded op must pass.
 pub(crate) fn check_op_shape(op: &Op) -> Result<(), EditError> {
+    // Lamport 0 is reserved for the implicit planet; u64::MAX would leave no room for
+    // `next_id`, so both are refused.
+    if op.id.lamport == 0 || op.id.lamport == u64::MAX {
+        return Err(corrupt());
+    }
     if op.writes.is_empty() || op.label.len() > MAX_LABEL_BYTES {
         return Err(corrupt());
     }
