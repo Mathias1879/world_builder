@@ -19,6 +19,13 @@ pub fn grade(score: f64, r: f64) -> Grade {
 }
 
 /// Partitions findings, applies kept codes, and grades one constraint.
+///
+/// **Does not normalize `badness`.** [`crate::evaluate`] normalizes findings before
+/// calling this (NaN issue badness → `1.0`, other issue badness clamped to `[0, 1]`,
+/// support and consequence badness forced to `0.0`). Callers that build verdicts
+/// outside `evaluate` must pass already-normalized findings: `score` is
+/// `1 − max(badness of unkept issues)`, so an out-of-range badness escapes `[0, 1]`
+/// and a NaN propagates into the score and grade.
 pub fn make_verdict(
     constraint: EntityId,
     kind: &str,

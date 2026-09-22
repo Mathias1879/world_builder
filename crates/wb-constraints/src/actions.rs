@@ -118,8 +118,16 @@ pub fn unkeep(
     Ok(tx.commit()?)
 }
 
+/// Writes the planet's `realism` slider, clamped to `[0, 1]`.
+///
+/// A NaN `r` is *not* clamped to a usable value — `f64::clamp` propagates NaN — and is
+/// deliberately not caught here either. It reaches the Edit Log and is rejected by
+/// value canonicalization, so `set_realism(log, f64::NAN)` returns
+/// `ConstraintError::Edit(EditError::InvalidValue { .. })` and writes nothing. That is
+/// the wanted outcome: a NaN slider is a caller bug, not a value to silently invent a
+/// realism for.
 pub fn set_realism(log: &mut EditLog, r: f64) -> Result<OpId, ConstraintError> {
-    let value = if r.is_nan() { r } else { r.clamp(0.0, 1.0) };
+    let value = r.clamp(0.0, 1.0);
     let mut tx = log.transact(&format!("Realism: {value:.2}"));
     tx.set(EntityId::PLANET, "realism", value);
     Ok(tx.commit()?)

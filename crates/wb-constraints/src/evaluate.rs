@@ -22,6 +22,25 @@ fn sort_key(f: &Finding) -> (String, String, Vec<u8>) {
 }
 
 /// Evaluates every live constraint with every matching checker.
+///
+/// Live constraints are visited in `EntityId` order and matching checkers run in
+/// checker-id order; findings are then sorted by `(checker, code, params)`, so the
+/// resulting [`Report`] — and its hash — is fully determined by the state.
+///
+/// # Badness normalization
+///
+/// Checkers are pure but not trusted to stay inside the contract, so `evaluate`
+/// normalizes every finding's `badness` before grading (spec §5.4 mentions only the
+/// clamp; this is the full rule):
+///
+/// - `FindingKind::Issue` with NaN badness becomes `1.0` — an unreadable badness is
+///   treated as the worst case rather than poisoning the `max`-fold behind the score.
+/// - Any other `Issue` badness is clamped into `[0, 1]`.
+/// - `Support` and `Consequence` badness is forced to `0.0`, whatever the checker set,
+///   so a non-issue can never move the score.
+///
+/// This is the only place normalization happens: [`make_verdict`] assumes it is
+/// already done.
 pub fn evaluate(ctx: &CheckContext<'_>, registry: &CheckerRegistry) -> Report {
     let mut verdicts = Vec::new();
     for view in ctx.state.live() {

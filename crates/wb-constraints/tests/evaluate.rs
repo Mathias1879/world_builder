@@ -104,6 +104,59 @@ fn evaluation_grades_keeps_and_counts() {
     assert_eq!(realism_of(log.state()), 0.85);
 }
 
+/// Emits deliberately out-of-contract badness so `evaluate`'s normalization shows.
+struct Unnormalized;
+
+impl Checker for Unnormalized {
+    fn id(&self) -> &'static str {
+        "test.unnormalized"
+    }
+    fn kinds(&self) -> &[KindPattern] {
+        &[KindPattern::Exact("feature.desert")]
+    }
+    fn check(&self, _c: ConstraintView<'_>, _ctx: &CheckContext<'_>) -> Vec<Finding> {
+        let mut loud_support = Finding::support("test.unnormalized", "n.support");
+        loud_support.badness = 0.9;
+        vec![
+            Finding::issue("test.unnormalized", "n.above", 2.0),
+            Finding::issue("test.unnormalized", "n.below", -1.0),
+            Finding::issue("test.unnormalized", "n.nan", f64::NAN),
+            loud_support,
+        ]
+    }
+}
+
+#[test]
+fn evaluate_normalizes_badness() {
+    let mut log = new_log();
+    add(&mut log, "feature.desert", vec![("area", sq())]);
+    let mut reg = CheckerRegistry::new();
+    reg.register(Box::new(Unnormalized)).unwrap();
+    let ctx = CheckContext::new(log.state(), Planet::default(), &UnknownTerrain);
+    let v = &evaluate(&ctx, &reg).verdicts[0];
+
+    // Findings are sorted by (checker, code, params): n.above, n.below, n.nan.
+    let by_code = |code: &str| {
+        v.issues
+            .iter()
+            .find(|f| f.code.as_str() == code)
+            .unwrap_or_else(|| panic!("missing {code}"))
+            .badness
+    };
+    assert_eq!(by_code("n.above"), 1.0, "2.0 clamps down to 1.0");
+    assert_eq!(by_code("n.below"), 0.0, "-1.0 clamps up to 0.0");
+    assert_eq!(by_code("n.nan"), 1.0, "NaN is the worst case, not a poison");
+
+    // Score = 1 − worst unkept issue badness, so the clamped 2.0 grades at the floor.
+    assert_eq!(v.score, 0.0);
+    assert_eq!(v.grade, Grade::Implausible);
+
+    // A support's badness is forced to 0 and never reaches the score.
+    assert_eq!(v.supports.len(), 1);
+    assert_eq!(v.supports[0].badness, 0.0);
+    assert!(v.consequences.is_empty());
+}
+
 #[test]
 fn evaluation_is_deterministic() {
     let mut log = new_log();

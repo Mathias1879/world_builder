@@ -187,9 +187,11 @@ fn realism_setting() {
     assert_eq!(realism_of(log.state()), 0.85);
     set_realism(&mut log, 7.0).unwrap();
     assert_eq!(realism_of(log.state()), 1.0);
+    // NaN is not clamped: `f64::clamp` propagates it and value canonicalization
+    // rejects it, so nothing is written.
     assert!(matches!(
         set_realism(&mut log, f64::NAN).unwrap_err(),
-        ConstraintError::Edit(_)
+        ConstraintError::Edit(EditError::InvalidValue { .. })
     ));
     log.undo().unwrap();
     assert_eq!(realism_of(log.state()), 0.85);
