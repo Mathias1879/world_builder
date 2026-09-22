@@ -17,6 +17,7 @@ wb-grid = { path = "crates/wb-grid" }
 serde = { version = "1", features = ["derive"] }
 postcard = { version = "1", default-features = false, features = ["alloc"] }
 wb-world = { path = "crates/wb-world" }
+wb-editlog = { path = "crates/wb-editlog" }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

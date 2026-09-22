@@ -1,5 +1,5 @@
 use crate::error::EditError;
-use crate::ids::AssetRef;
+use crate::ids::{AssetRef, EntityId};
 use core::cell::Cell;
 use core::f64::consts::{FRAC_PI_2, PI};
 use serde::{Deserialize, Serialize};
@@ -51,6 +51,7 @@ pub enum Value {
     Geometry(Geometry),
     Asset(AssetRef),
     List(#[serde(deserialize_with = "de_list")] Vec<Value>),
+    Entity(EntityId),
 }
 
 /// Wraps a longitude into (−π, π]; `-0.0` becomes `0.0` so equal points hash equally.
@@ -189,5 +190,10 @@ impl From<Geometry> for Value {
 impl From<AssetRef> for Value {
     fn from(v: AssetRef) -> Self {
         Value::Asset(v)
+    }
+}
+impl From<EntityId> for Value {
+    fn from(v: EntityId) -> Self {
+        Value::Entity(v)
     }
 }

@@ -177,7 +177,7 @@ All are ordinary, undoable Edit Log transactions.
 - **Aethoria cases:** Great Sand Sea lore 600 000 mi² vs drawn ≈ 1.2 M mi² → Stretch/Implausible by preset; suggestion fixes it; undo restores. "Thulean Mountains north of the Sand Sea" → Plausible when drawn so, Implausible when swapped.
 - **End-to-end:** Edit Log world → evaluate → apply suggestion → keep anyway → undo → re-evaluate; grades checked at each step.
 - **Golden:** a fixed world's `Report::hash` identical on aarch64, wasm32-wasip1, x86-64 (via `scripts/ci-local.sh`).
-- **Performance guard:** 5 000 constraints evaluated in < 200 ms (native release), release-only test wired into `scripts/check.sh`.
+- **Performance guard:** 5 000 constraints evaluated in < 300 ms (native release) and < 600 ms (wasm32-wasip1 release), release-only test wired into `scripts/check.sh`. (Measured ≈190 ms native and ≈227 ms wasm on the development Mac after the bounding-box prefilter; the budgets leave headroom for a loaded machine. The earlier 200 ms figure was set before the per-constraint scanning cost was measured, against a fixture of identical deserts and unknown terrain that never exercised the region-rule or coast scans.)
 
 ## 11. Out of scope
 
