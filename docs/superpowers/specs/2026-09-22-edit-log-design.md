@@ -151,7 +151,7 @@ Saving is deterministic: the same log always produces identical bytes.
 
 ### 5.3 Browser contract (implemented by Editor [10])
 
-The editor persists each committed op as its own record (so work is never "unsaved") and uses `to_bytes()`/`from_bytes()` for export/import. The crate exposes `ops_since(heads)` and `apply_ops(ops)` for that incremental persistence.
+The editor persists each committed op as its own record (so work is never "unsaved") and uses `to_bytes()`/`from_bytes()` for export/import. The crate exposes `ops_since(heads)` and `apply_ops(ops)` for that incremental persistence. Received ops extend the current branch: its heads become the newest ops of (current heads ∪ incoming leaves); other branches are unchanged.
 
 ### 5.4 Size
 

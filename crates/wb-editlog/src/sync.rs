@@ -41,6 +41,7 @@ impl EditLog {
     }
 
     /// Adds ops received from storage or another actor. Atomic: all or nothing.
+    /// Received ops extend the current branch: its heads become the newest ops of (current heads ∪ incoming leaves).
     pub fn apply_ops(&mut self, ops: Vec<Op>) -> Result<(), EditError> {
         let mut incoming: BTreeMap<OpId, Op> = BTreeMap::new();
         for op in ops {
@@ -63,19 +64,37 @@ impl EditLog {
         if let Some(max) = incoming.keys().map(|id| id.lamport).max() {
             self.max_lamport = self.max_lamport.max(max);
         }
-        self.ops.extend(incoming);
-        // Find leaf ops (those with no children)
-        let all_parents: BTreeSet<OpId> = self
-            .ops
+
+        // Compute incoming leaves before extending ops
+        let incoming_parents: BTreeSet<OpId> = incoming
             .values()
             .flat_map(|op| op.parents.iter().copied())
             .collect();
-        let heads: BTreeSet<OpId> = self
-            .ops
+        let incoming_leaves: BTreeSet<OpId> = incoming
             .keys()
-            .filter(|id| !all_parents.contains(id))
+            .filter(|id| !incoming_parents.contains(id))
             .copied()
             .collect();
+
+        self.ops.extend(incoming);
+        let cur = self.current.clone();
+        let branch = self
+            .branches
+            .get_mut(&cur)
+            .expect("current branch always exists");
+        let mut heads: BTreeSet<OpId> = branch
+            .heads
+            .iter()
+            .copied()
+            .chain(incoming_leaves)
+            .collect();
+        let parents: BTreeSet<OpId> = heads
+            .iter()
+            .flat_map(|h| self.ops[h].parents.iter().copied())
+            .collect();
+        let ancestors = reachable(&self.ops, &parents);
+        heads.retain(|h| !ancestors.contains(h));
+        branch.heads = heads.clone();
         self.state = materialize(&self.ops, &heads);
         Ok(())
     }

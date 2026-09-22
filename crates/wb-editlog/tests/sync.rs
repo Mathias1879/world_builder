@@ -121,3 +121,32 @@ proptest! {
         prop_assert_eq!(sx, sy);
     }
 }
+
+#[test]
+fn applied_ops_extend_the_current_branch_only() {
+    let (a, mut b, e) = seeded_pair();
+    assert_eq!(b.heads(), a.heads(), "b's main branch now ends at the seed");
+    b.fork("side", wb_editlog::ForkFrom::Current).unwrap();
+    let mut a = a;
+    let mut tx = a.transact("a2");
+    tx.set(e, "h", 5i64);
+    tx.commit().unwrap();
+    b.apply_ops(a.ops_since(&[e.op].into_iter().collect()))
+        .unwrap();
+    assert_eq!(b.heads(), a.heads());
+    assert_eq!(b.state().field(e, "h"), Some(&Value::Int(5)));
+    assert_eq!(
+        b.branch("side")
+            .unwrap()
+            .heads
+            .iter()
+            .copied()
+            .collect::<Vec<_>>(),
+        vec![e.op],
+        "other branches untouched"
+    );
+    let mut tx = b.transact("b edits after receiving");
+    tx.set(e, "w", 1i64);
+    let id = tx.commit().unwrap();
+    assert_eq!(b.op(id).unwrap().parents, *a.heads());
+}
