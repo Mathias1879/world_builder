@@ -1,11 +1,13 @@
 //! World data model: typed per-cell layers in tiles, LOD, extents, features, hashing.
 
+mod apron;
 mod extent;
 mod layer;
 mod lod;
 mod tile;
 mod world;
 
+pub use apron::{APRON_EDGE, ApronError, apron_index, gather_with_apron};
 pub use extent::{Extent, ExtentError, RegionBox};
 pub use layer::{LayerDesc, LayerId, LayerRegistry, LodPolicy, RegistryError};
 pub use lod::{Aggregate, LodError, downsample, refine_cell, refine_tile};
