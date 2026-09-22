@@ -117,10 +117,13 @@ fn evaluating_5000_constraints_is_within_budget() {
     let report = evaluate(&ctx, &reg);
     let ms = start.elapsed().as_millis();
     assert_eq!(report.verdicts.len(), 5_000);
+    // Measured on the development Mac after the bounding-box prefilter: ~190 ms native,
+    // ~227 ms wasm. The budgets leave room for a loaded machine rather than tracking the
+    // best case — a guard that flakes gets disabled, which is worse than a loose one.
     let budget = if cfg!(target_family = "wasm") {
         600
     } else {
-        200
+        300
     };
     assert!(
         ms <= budget,

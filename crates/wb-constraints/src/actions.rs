@@ -76,9 +76,16 @@ fn write_codes(tx: &mut Transaction<'_>, constraint: EntityId, codes: &BTreeSet<
 
 /// Unions `codes` into the constraint's `keep_codes`, optionally recording `reason`.
 ///
-/// Writes nothing when the code set is unchanged and no reason is given — the empty
-/// transaction then surfaces as [`ConstraintError::Edit`] with `EditError::EmptyTransaction`.
-/// A reason is written whenever it is given, even if the code set did not change.
+/// Commits when the code set changes **or** a reason is given, and writes nothing —
+/// surfacing as [`ConstraintError::Edit`] with `EditError::EmptyTransaction` — when
+/// neither changes. Re-keeping an already-kept code with no reason is therefore a no-op
+/// rather than an empty entry in the undo history.
+///
+/// A reason is written whenever one is given, even if the code set did not change: that
+/// is the deliberate way to edit the explanation alone. It is also why a reason can be
+/// recorded against a constraint with nothing kept — updating the justification is a
+/// legitimate action in its own right, and [`unkeep`] clears both fields together when
+/// the last code goes.
 pub fn keep_anyway(
     log: &mut EditLog,
     constraint: EntityId,
