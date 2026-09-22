@@ -1,5 +1,5 @@
 use crate::error::EditError;
-use crate::ids::OpId;
+use crate::ids::{DELETED, EntityId, KIND, OpId};
 use crate::log::EditLog;
 use crate::op::{MAX_LABEL_BYTES, Op};
 use crate::state::{materialize, reachable};
@@ -27,6 +27,10 @@ pub(crate) fn check_op_shape(op: &Op) -> Result<(), EditError> {
         }
     }
     for w in &op.writes {
+        // The planet is implicit and undeletable; its kind is fixed.
+        if w.entity == EntityId::PLANET && matches!(w.field.as_str(), DELETED | KIND) {
+            return Err(corrupt());
+        }
         if w.value.clone().canonical(w.field.as_str()).as_ref() != Ok(&w.value) {
             return Err(corrupt());
         }

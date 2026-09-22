@@ -234,3 +234,23 @@ fn a_full_log_refuses_new_commits_with_log_full() {
         "edit log has reached its maximum length"
     );
 }
+
+// --- Final fix 3: received ops obey the same planet rules as local edits.
+
+#[test]
+fn apply_ops_rejects_planet_deleted_or_kind_writes() {
+    for field in ["deleted", "kind"] {
+        let (_, mut b, _) = seeded_pair();
+        let heads = b.heads().clone();
+        let mut op = root_op(5);
+        op.writes[0].field = wb_editlog::FieldKey::new(field).unwrap();
+        op.writes[0].value = if field == "deleted" {
+            Value::Bool(true)
+        } else {
+            Value::from("moon")
+        };
+        assert_eq!(b.apply_ops(vec![op]).unwrap_err(), corrupt_ops(), "{field}");
+        assert_unchanged(&b, 1, &heads);
+        assert!(!b.state().entity(EntityId::PLANET).unwrap().is_deleted());
+    }
+}
