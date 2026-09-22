@@ -18,10 +18,13 @@ fi
 
 TARGET=x86_64-unknown-linux-musl
 IMAGE=alpine:3.20
-WORK="$(mktemp -d)"
+# Scratch + x86 build cache live under cargo's target dir (honours machine-level target-dir config).
+TARGET_DIR="$(cargo metadata --format-version 1 --no-deps | sed -n 's/.*"target_directory":"\([^"]*\)".*/\1/p')"
+WORK="$TARGET_DIR/ci-local"
+rm -rf "$WORK/bins" && mkdir -p "$WORK"
 STARTED_SERVICE=0
 cleanup() {
-  rm -rf "$WORK"
+  rm -rf "$WORK/bins"   # keep $WORK/target as an incremental x86 build cache
   container image delete "$IMAGE" >/dev/null 2>&1 || true
   if [[ $STARTED_SERVICE -eq 1 ]]; then container system stop >/dev/null 2>&1 || true; fi
 }
