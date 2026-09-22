@@ -10,6 +10,8 @@ mod kinds;
 mod model;
 mod templates;
 
+pub mod checks;
+
 pub use actions::{apply_suggestion, keep_anyway, set_realism, unkeep};
 pub use checker::{
     CheckContext, Checker, CheckerRegistry, ConstraintView, KindPattern, Terrain, UnknownTerrain,
