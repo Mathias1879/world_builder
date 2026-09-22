@@ -188,10 +188,13 @@ impl EditLog {
 
     pub fn add_asset(&mut self, media_type: &str, bytes: Vec<u8>) -> AssetRef {
         let r = AssetRef(*blake3::hash(&bytes).as_bytes());
-        self.assets.entry(r).or_insert(Asset {
-            media_type: media_type.to_string(),
-            bytes,
-        });
+        if let std::collections::btree_map::Entry::Vacant(slot) = self.assets.entry(r) {
+            slot.insert(Asset {
+                media_type: media_type.to_string(),
+                bytes,
+            });
+            self.modified_ms = self.clock.now_ms();
+        }
         r
     }
 
@@ -201,6 +204,7 @@ impl EditLog {
 
     pub fn set_title(&mut self, title: &str) {
         self.title = title.to_string();
+        self.modified_ms = self.clock.now_ms();
     }
 
     pub fn title(&self) -> &str {
@@ -209,6 +213,7 @@ impl EditLog {
 
     pub fn set_author_name(&mut self, name: &str) {
         self.authors.insert(self.author, name.to_string());
+        self.modified_ms = self.clock.now_ms();
     }
 
     pub(crate) fn current_branch_ref(&self) -> &Branch {

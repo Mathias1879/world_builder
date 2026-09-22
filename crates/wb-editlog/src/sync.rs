@@ -3,6 +3,7 @@ use crate::ids::{DELETED, EntityId, KIND, OpId};
 use crate::log::EditLog;
 use crate::op::{MAX_LABEL_BYTES, Op};
 use crate::state::{materialize, reachable};
+use crate::value::is_canonical;
 use std::collections::{BTreeMap, BTreeSet};
 
 fn corrupt() -> EditError {
@@ -31,7 +32,8 @@ pub(crate) fn check_op_shape(op: &Op) -> Result<(), EditError> {
         if w.entity == EntityId::PLANET && matches!(w.field.as_str(), DELETED | KIND) {
             return Err(corrupt());
         }
-        if w.value.clone().canonical(w.field.as_str()).as_ref() != Ok(&w.value) {
+        // Bitwise (so `-0.0` vs `0.0` is caught); depth is checked before any clone.
+        if !is_canonical(&w.value, w.field.as_str()) {
             return Err(corrupt());
         }
     }
@@ -50,7 +52,8 @@ impl EditLog {
     }
 
     /// Adds ops received from storage or another actor. Atomic: all or nothing.
-    /// Received ops extend the current branch: its heads become the newest ops of (current heads ∪ incoming leaves).
+    /// Received ops extend the current branch: its heads become the maximal ops (those
+    /// not ancestors of another) of (current heads ∪ incoming leaves).
     pub fn apply_ops(&mut self, ops: Vec<Op>) -> Result<(), EditError> {
         let mut incoming: BTreeMap<OpId, Op> = BTreeMap::new();
         for op in ops {

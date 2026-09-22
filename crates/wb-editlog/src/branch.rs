@@ -59,6 +59,7 @@ impl EditLog {
                 redo: Vec::new(),
             },
         );
+        self.modified_ms = self.clock.now_ms();
         Ok(())
     }
 
@@ -71,6 +72,7 @@ impl EditLog {
             .clone();
         self.current = name.to_string();
         self.state = materialize(&self.ops, &heads);
+        self.modified_ms = self.clock.now_ms();
         Ok(())
     }
 
@@ -123,6 +125,8 @@ impl EditLog {
     }
 
     /// Commits one op that turns the current state into the version's state.
+    /// Restoring a version identical to the current state returns
+    /// `EditError::EmptyTransaction` (there is nothing to write).
     pub fn restore_version(&mut self, id: VersionId) -> Result<OpId, EditError> {
         let target = self.view_version(id)?;
         let name = self

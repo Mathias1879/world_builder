@@ -254,3 +254,69 @@ fn apply_ops_rejects_planet_deleted_or_kind_writes() {
         assert!(!b.state().entity(EntityId::PLANET).unwrap().is_deleted());
     }
 }
+
+// --- Final fix 8: check_op_shape coverage.
+
+fn reject_and_keep(op_edit: impl Fn(&mut Op)) {
+    let (_, mut b, _) = seeded_pair();
+    let heads = b.heads().clone();
+    let mut op = root_op(5);
+    op.writes.push(wb_editlog::FieldWrite {
+        entity: EntityId::PLANET,
+        field: wb_editlog::FieldKey::new("width").unwrap(),
+        value: Value::Int(2),
+    });
+    op_edit(&mut op);
+    assert_eq!(b.apply_ops(vec![op]).unwrap_err(), corrupt_ops());
+    assert_unchanged(&b, 1, &heads);
+}
+
+#[test]
+fn check_op_shape_rejects_unsorted_writes() {
+    reject_and_keep(|op| op.writes.swap(0, 1));
+}
+
+#[test]
+fn check_op_shape_rejects_duplicate_entity_field() {
+    reject_and_keep(|op| op.writes[1].field = op.writes[0].field.clone());
+}
+
+#[test]
+fn check_op_shape_rejects_a_201_byte_label() {
+    reject_and_keep(|op| op.label = "x".repeat(201));
+}
+
+#[test]
+fn check_op_shape_rejects_negative_zero_latitude_bitwise() {
+    reject_and_keep(|op| {
+        op.writes[0].value = Value::LatLon(wb_grid::LatLon {
+            lat: -0.0,
+            lon: 0.5,
+        })
+    });
+}
+
+#[test]
+fn check_op_shape_rejects_lists_nested_too_deep() {
+    reject_and_keep(|op| {
+        let mut v = Value::Int(1);
+        for _ in 0..=wb_editlog::MAX_LIST_DEPTH {
+            v = Value::List(vec![v]);
+        }
+        op.writes[0].value = v;
+    });
+}
+
+#[test]
+fn a_batch_with_one_invalid_op_changes_nothing() {
+    let (_, mut b, _) = seeded_pair();
+    let heads = b.heads().clone();
+    let valid = root_op(5);
+    let mut invalid = root_op(6);
+    invalid.writes.clear();
+    assert_eq!(
+        b.apply_ops(vec![valid, invalid]).unwrap_err(),
+        corrupt_ops()
+    );
+    assert_unchanged(&b, 1, &heads);
+}

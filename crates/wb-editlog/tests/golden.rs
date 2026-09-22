@@ -1,5 +1,9 @@
 //! Cross-target determinism gate for the edit log. If this fails after an intentional
 //! change to encoding or semantics, update both constants in the same commit.
+//!
+//! `GOLDEN_FILE` hashes the whole `.wbworld` file, whose header embeds
+//! `wb_world::ENGINE_VERSION` (the crate version): bump `GOLDEN_FILE` whenever the crate
+//! version changes. `GOLDEN_SOURCE` hashes state only and is unaffected.
 
 mod common;
 

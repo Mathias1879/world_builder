@@ -201,3 +201,49 @@ fn edit_log_is_send_and_sync() {
     fn assert_send_sync<T: Send + Sync>() {}
     assert_send_sync::<wb_editlog::EditLog>();
 }
+
+// --- Final fix 8: metadata changes update the modified time.
+
+#[derive(Clone)]
+struct StepClock(std::sync::Arc<std::sync::atomic::AtomicU64>);
+
+impl wb_editlog::Clock for StepClock {
+    fn now_ms(&self) -> u64 {
+        self.0.load(std::sync::atomic::Ordering::SeqCst)
+    }
+}
+
+#[test]
+fn metadata_changes_update_modified_time() {
+    use std::sync::atomic::Ordering::SeqCst;
+    let now = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(1_000));
+    let mut log = wb_editlog::EditLog::new(
+        wb_editlog::ActorId([1; 16]),
+        wb_editlog::AuthorId([9; 16]),
+        Box::new(StepClock(now.clone())),
+    );
+    let mut t = 1_000;
+    let mut tick = |log: &wb_editlog::EditLog, what: &str| {
+        assert_eq!(log.modified_ms(), t, "{what}");
+        t += 10;
+        now.store(t, SeqCst);
+    };
+    tick(&log, "new");
+    log.set_title("T");
+    tick(&log, "set_title");
+    log.set_author_name("A");
+    tick(&log, "set_author_name");
+    log.add_asset("image/png", vec![1, 2, 3]);
+    tick(&log, "add_asset (new)");
+    log.fork("alt", wb_editlog::ForkFrom::Current).unwrap();
+    tick(&log, "fork");
+    log.switch("alt").unwrap();
+    tick(&log, "switch");
+    let before = log.modified_ms();
+    log.add_asset("image/png", vec![1, 2, 3]);
+    assert_eq!(
+        log.modified_ms(),
+        before,
+        "re-adding a known asset is not a change"
+    );
+}
