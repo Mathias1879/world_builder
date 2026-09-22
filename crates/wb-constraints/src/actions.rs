@@ -3,18 +3,7 @@ use crate::kinds::{is_constraint_kind, text};
 use crate::model::{IssueCode, Suggestion};
 use crate::templates::render_suggestion;
 use std::collections::BTreeSet;
-use wb_editlog::{EditLog, EntityId, MAX_LABEL_BYTES, OpId, Value};
-
-fn clip(s: String) -> String {
-    if s.len() <= MAX_LABEL_BYTES {
-        return s;
-    }
-    let mut end = MAX_LABEL_BYTES;
-    while !s.is_char_boundary(end) {
-        end -= 1;
-    }
-    s[..end].to_string()
-}
+use wb_editlog::{EditLog, EntityId, OpId, Value, clip_label};
 
 /// Commits a suggestion's writes as one transaction.
 pub fn apply_suggestion(log: &mut EditLog, s: &Suggestion) -> Result<OpId, ConstraintError> {
@@ -25,7 +14,7 @@ pub fn apply_suggestion(log: &mut EditLog, s: &Suggestion) -> Result<OpId, Const
     {
         return Err(ConstraintError::UnknownEntity(*e));
     }
-    let label = clip(format!("Suggestion: {}", render_suggestion(s)));
+    let label = clip_label(format!("Suggestion: {}", render_suggestion(s)));
     let mut tx = log.transact(&label);
     for (e, field, value) in &s.writes {
         tx.set(*e, field, value.clone());
@@ -71,7 +60,7 @@ pub fn keep_anyway(
 ) -> Result<OpId, ConstraintError> {
     let (mut current, display) = kept(log, constraint)?;
     current.extend(codes.iter().map(|c| c.0.clone()));
-    let mut tx = log.transact(&clip(format!("Kept anyway: {display}")));
+    let mut tx = log.transact(&clip_label(format!("Kept anyway: {display}")));
     tx.set(constraint, "keep_codes", codes_value(&current));
     if let Some(r) = reason {
         tx.set(constraint, "keep_reason", r);
@@ -89,7 +78,7 @@ pub fn unkeep(
     for c in codes {
         current.remove(c.as_str());
     }
-    let mut tx = log.transact(&clip(format!("Un-kept: {display}")));
+    let mut tx = log.transact(&clip_label(format!("Un-kept: {display}")));
     if current.len() != before {
         if current.is_empty() {
             tx.set(constraint, "keep_codes", Value::Null);
