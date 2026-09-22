@@ -49,6 +49,12 @@ fn all_tiles_sorted_and_counted() {
     assert_eq!(all, sorted);
 }
 
+#[test]
+#[should_panic(expected = "local cell index out of range")]
+fn tile_cell_rejects_out_of_range_local_index() {
+    TileId::new(Face::PosX, 0, 0, 0).unwrap().cell(TILE_SIZE, 0);
+}
+
 fn face_strategy() -> impl Strategy<Value = Face> {
     (0u8..6).prop_map(|i| Face::from_index(i).unwrap())
 }

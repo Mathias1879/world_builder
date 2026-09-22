@@ -38,7 +38,12 @@ impl TileId {
 
     /// Cell at local coordinates `(i, j)`, each in `0..TILE_SIZE`.
     pub fn cell(self, i: u32, j: u32) -> CellId {
-        debug_assert!(i < TILE_SIZE && j < TILE_SIZE);
+        assert!(
+            i < TILE_SIZE && j < TILE_SIZE,
+            "local cell index out of range: ({}, {})",
+            i,
+            j
+        );
         CellId {
             face: self.face,
             level: self.level,
