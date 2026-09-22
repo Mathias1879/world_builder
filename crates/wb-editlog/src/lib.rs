@@ -7,6 +7,7 @@ mod ids;
 mod log;
 mod op;
 mod state;
+mod sync;
 mod value;
 
 pub use branch::{ForkFrom, TimelineEntry};
