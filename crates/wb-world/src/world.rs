@@ -1,4 +1,5 @@
 use crate::extent::Extent;
+use crate::feature::FeatureSet;
 use crate::layer::{LayerDesc, LayerId, LayerRegistry, RegistryError};
 use crate::tile::{CellValue, Dtype, Tile};
 use core::fmt;
@@ -97,6 +98,7 @@ impl std::error::Error for WorldError {}
 pub struct World {
     pub planet: Planet,
     pub extent: Extent,
+    pub features: FeatureSet,
     registry: LayerRegistry,
     f32_layers: BTreeMap<LayerId, LayerStore<f32>>,
     u8_layers: BTreeMap<LayerId, LayerStore<u8>>,
@@ -135,6 +137,7 @@ impl World {
         Self {
             planet,
             extent,
+            features: FeatureSet::default(),
             registry: LayerRegistry::default(),
             f32_layers: BTreeMap::new(),
             u8_layers: BTreeMap::new(),
