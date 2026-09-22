@@ -555,3 +555,43 @@ fn snapshot_with_negative_zero_latitude_falls_back_to_ops() {
         "-0.0 == 0.0 under PartialEq, but the snapshot is not bitwise canonical"
     );
 }
+
+// --- Final fix 7: version sequences stay below u32::MAX - 1, on load and on save.
+
+fn with_version_seq(seq: u32) -> Vec<u8> {
+    let mut branches = BTreeMap::new();
+    branches.insert("main".to_string(), Branch::default());
+    let mut versions = BTreeMap::new();
+    versions.insert(
+        VersionId {
+            actor: ACTOR_A,
+            seq,
+        },
+        Version {
+            name: "v".to_string(),
+            heads: BTreeSet::new(),
+            branch: "main".to_string(),
+            time_ms: T0,
+            author: AUTHOR,
+        },
+    );
+    let meta = encode_meta("", BTreeMap::new(), branches, versions, "main", T0, T0);
+    replace_section(&new_log().to_bytes(), b"META", &meta)
+}
+
+#[test]
+fn version_seq_at_u32_max_minus_one_is_corrupt_meta() {
+    assert_eq!(
+        load(&with_version_seq(u32::MAX - 1)).unwrap_err(),
+        corrupt_meta()
+    );
+}
+
+#[test]
+fn saving_past_the_last_version_seq_is_log_full() {
+    let mut log = load(&with_version_seq(u32::MAX - 2)).unwrap();
+    assert_eq!(log.save_version("next").unwrap_err(), EditError::LogFull);
+    assert_eq!(log.versions().count(), 1);
+    // Whatever it does save must always load again.
+    load(&log.to_bytes()).unwrap();
+}

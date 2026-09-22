@@ -25,6 +25,9 @@ pub struct TimelineEntry {
     pub forks: Vec<String>,
 }
 
+/// Version sequence numbers are strictly below this bound, so `seq + 1` never overflows.
+pub(crate) const MAX_VERSION_SEQ: u32 = u32::MAX - 1;
+
 pub(crate) fn check_name(name: &str) -> Result<(), EditError> {
     if name.is_empty() || name.len() > 64 || name.chars().any(char::is_control) {
         return Err(EditError::InvalidName(name.to_string()));
@@ -79,13 +82,21 @@ impl EditLog {
         self.branches.get(name)
     }
 
+    /// Records the current branch's heads as a named version. Returns `LogFull` once
+    /// this actor's version sequence is exhausted (seq values stay below
+    /// `MAX_VERSION_SEQ`, which the loader also enforces).
     pub fn save_version(&mut self, name: &str) -> Result<VersionId, EditError> {
         check_name(name)?;
+        let seq = self.next_version_seq;
+        if seq >= MAX_VERSION_SEQ {
+            return Err(EditError::LogFull);
+        }
+        let next = seq.checked_add(1).ok_or(EditError::LogFull)?;
         let id = VersionId {
             actor: self.actor,
-            seq: self.next_version_seq,
+            seq,
         };
-        self.next_version_seq += 1;
+        self.next_version_seq = next;
         let time_ms = self.clock.now_ms();
         let version = Version {
             name: name.to_string(),

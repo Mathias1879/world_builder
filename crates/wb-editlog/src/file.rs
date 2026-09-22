@@ -1,4 +1,4 @@
-use crate::branch::check_name;
+use crate::branch::{MAX_VERSION_SEQ, check_name};
 use crate::error::EditError;
 use crate::ids::{ActorId, AssetRef, AuthorId, OpId, VersionId};
 use crate::log::{Asset, Branch, Clock, EditLog, Version};
@@ -219,6 +219,9 @@ impl EditLog {
         check_name(&meta.current_branch).map_err(|_| corrupt("META"))?;
         for v in meta.versions.values() {
             check_name(&v.name).map_err(|_| corrupt("META"))?;
+        }
+        if meta.versions.keys().any(|v| v.seq >= MAX_VERSION_SEQ) {
+            return Err(corrupt("META"));
         }
         // Undo/redo stacks may only name undoable ops (Edit, Import, Restore) that are
         // part of their own branch's history; `undo()`/`redo()` rely on this.
