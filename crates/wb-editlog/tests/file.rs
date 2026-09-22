@@ -440,3 +440,44 @@ fn valid_undo_redo_stacks_still_load_and_work() {
     back.redo().unwrap();
     back.undo().unwrap();
 }
+
+// --- Final fix 4: the header's engine version survives load/save.
+
+/// Rewrites the header's engine-version string (the header carries no checksum).
+fn with_engine_version(bytes: &[u8], engine: &[u8]) -> Vec<u8> {
+    let old_len = bytes[8] as usize;
+    let mut out = bytes[..8].to_vec();
+    out.push(engine.len() as u8);
+    out.extend_from_slice(engine);
+    out.extend_from_slice(&bytes[9 + old_len..]);
+    out
+}
+
+fn corrupt_header() -> EditError {
+    EditError::CorruptFile {
+        section: "header".into(),
+    }
+}
+
+#[test]
+fn engine_version_survives_load_and_save() {
+    let fresh = new_log();
+    assert_eq!(fresh.engine_version(), wb_world::ENGINE_VERSION);
+    let crafted = with_engine_version(&fresh.to_bytes(), b"0.0.9");
+    let back = load(&crafted).unwrap();
+    assert_eq!(back.engine_version(), "0.0.9");
+    assert_eq!(back.to_bytes(), crafted, "re-saves the exact bytes");
+}
+
+#[test]
+fn non_utf8_engine_version_is_corrupt_header() {
+    let crafted = with_engine_version(&new_log().to_bytes(), &[0xFF, 0xFE]);
+    assert_eq!(load(&crafted).unwrap_err(), corrupt_header());
+}
+
+#[test]
+fn nonzero_reserved_header_field_is_corrupt_header() {
+    let mut bytes = new_log().to_bytes();
+    bytes[6] = 1;
+    assert_eq!(load(&bytes).unwrap_err(), corrupt_header());
+}

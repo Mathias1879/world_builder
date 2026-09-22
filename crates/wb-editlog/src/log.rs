@@ -78,6 +78,8 @@ pub struct EditLog {
     pub(crate) authors: BTreeMap<AuthorId, String>,
     pub(crate) created_ms: u64,
     pub(crate) modified_ms: u64,
+    /// Engine version recorded in the file header (new logs: `wb_world::ENGINE_VERSION`).
+    pub(crate) engine_version: String,
 }
 
 impl fmt::Debug for EditLog {
@@ -125,6 +127,7 @@ impl EditLog {
             authors: BTreeMap::new(),
             created_ms: now,
             modified_ms: now,
+            engine_version: wb_world::ENGINE_VERSION.to_string(),
         }
     }
 
@@ -154,6 +157,11 @@ impl EditLog {
 
     pub fn modified_ms(&self) -> u64 {
         self.modified_ms
+    }
+
+    /// The engine version that wrote this log's file (or this engine, for a new log).
+    pub fn engine_version(&self) -> &str {
+        &self.engine_version
     }
 
     pub fn heads(&self) -> &BTreeSet<OpId> {

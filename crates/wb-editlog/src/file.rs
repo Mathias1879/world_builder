@@ -104,8 +104,11 @@ impl EditLog {
         out.extend_from_slice(MAGIC);
         out.extend_from_slice(&FORMAT_VERSION.to_le_bytes());
         out.extend_from_slice(&0u16.to_le_bytes());
-        let engine = wb_world::ENGINE_VERSION.as_bytes();
-        out.push(u8::try_from(engine.len()).expect("engine version shorter than 256 bytes"));
+        let engine = self.engine_version.as_bytes();
+        out.push(
+            u8::try_from(engine.len())
+                .expect("engine version is ENGINE_VERSION or was read from a u8-length header"),
+        );
         out.extend_from_slice(engine);
 
         let ops: Vec<&Op> = self.ops.values().collect();
@@ -149,11 +152,16 @@ impl EditLog {
         if format > FORMAT_VERSION {
             return Err(EditError::UnsupportedFormat { found: format });
         }
-        let engine_len = header[8] as usize;
-        let mut pos = 9 + engine_len;
-        if bytes.len() < pos {
+        if header[6..8] != [0, 0] {
             return Err(corrupt("header"));
         }
+        let engine_len = header[8] as usize;
+        let mut pos = 9 + engine_len;
+        let engine_version = bytes
+            .get(9..pos)
+            .and_then(|b| core::str::from_utf8(b).ok())
+            .ok_or_else(|| corrupt("header"))?
+            .to_string();
 
         let ops: Vec<Op> = decode(read_section(bytes, &mut pos, b"OPS\0", "OPS")?, "OPS")?;
         let assets: Vec<(AssetRef, Asset)> =
@@ -247,6 +255,7 @@ impl EditLog {
         log.current = meta.current_branch;
         log.created_ms = meta.created_ms;
         log.modified_ms = meta.modified_ms;
+        log.engine_version = engine_version;
 
         let heads = log.current_branch_ref().heads.clone();
         log.state = match snapshot {
