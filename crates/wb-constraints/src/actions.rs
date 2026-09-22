@@ -3,14 +3,18 @@ use crate::kinds::{is_constraint_kind, text};
 use crate::model::{IssueCode, Suggestion};
 use crate::templates::render_suggestion;
 use std::collections::BTreeSet;
-use wb_editlog::{EditLog, EntityId, OpId, Value, clip_label};
+use wb_editlog::{EditLog, EntityId, OpId, Transaction, Value, clip_label};
 
 /// Commits a suggestion's writes as one transaction.
+///
+/// Fails with [`ConstraintError::UnknownEntity`] — writing nothing — if any target
+/// entity is missing. Deletion in the Edit Log is a tombstone, so a deleted entity is
+/// still reachable through `State::entity`; it counts as missing here.
 pub fn apply_suggestion(log: &mut EditLog, s: &Suggestion) -> Result<OpId, ConstraintError> {
     if let Some((e, _, _)) = s
         .writes
         .iter()
-        .find(|(e, _, _)| log.state().entity(*e).is_none())
+        .find(|(e, _, _)| log.state().entity(*e).filter(|v| !v.is_deleted()).is_none())
     {
         return Err(ConstraintError::UnknownEntity(*e));
     }
@@ -22,6 +26,10 @@ pub fn apply_suggestion(log: &mut EditLog, s: &Suggestion) -> Result<OpId, Const
     Ok(tx.commit()?)
 }
 
+/// The constraint's current kept-code set and display name.
+///
+/// Deletion is a tombstone, so a deleted entity is still reachable through
+/// `State::entity`; it is treated as missing here.
 fn kept(
     log: &EditLog,
     constraint: EntityId,
@@ -29,6 +37,7 @@ fn kept(
     let view = log
         .state()
         .entity(constraint)
+        .filter(|v| !v.is_deleted())
         .ok_or(ConstraintError::UnknownEntity(constraint))?;
     let kind = view.kind().unwrap_or_default();
     if !is_constraint_kind(kind) {
@@ -52,6 +61,24 @@ fn codes_value(codes: &BTreeSet<String>) -> Value {
     Value::List(codes.iter().map(|c| Value::Text(c.clone())).collect())
 }
 
+/// Writes the kept-code set in its canonical encoding.
+///
+/// "Nothing kept" is always `Value::Null` for both `keep_codes` and `keep_reason` —
+/// never `Value::List([])`, so the two actions cannot disagree about the empty set.
+fn write_codes(tx: &mut Transaction<'_>, constraint: EntityId, codes: &BTreeSet<String>) {
+    if codes.is_empty() {
+        tx.set(constraint, "keep_codes", Value::Null);
+        tx.set(constraint, "keep_reason", Value::Null);
+    } else {
+        tx.set(constraint, "keep_codes", codes_value(codes));
+    }
+}
+
+/// Unions `codes` into the constraint's `keep_codes`, optionally recording `reason`.
+///
+/// Writes nothing when the code set is unchanged and no reason is given — the empty
+/// transaction then surfaces as [`ConstraintError::Edit`] with `EditError::EmptyTransaction`.
+/// A reason is written whenever it is given, even if the code set did not change.
 pub fn keep_anyway(
     log: &mut EditLog,
     constraint: EntityId,
@@ -59,15 +86,21 @@ pub fn keep_anyway(
     reason: Option<&str>,
 ) -> Result<OpId, ConstraintError> {
     let (mut current, display) = kept(log, constraint)?;
+    let before = current.len();
     current.extend(codes.iter().map(|c| c.0.clone()));
+    let changed = current.len() != before;
     let mut tx = log.transact(&clip_label(format!("Kept anyway: {display}")));
-    tx.set(constraint, "keep_codes", codes_value(&current));
+    if changed {
+        write_codes(&mut tx, constraint, &current);
+    }
     if let Some(r) = reason {
         tx.set(constraint, "keep_reason", r);
     }
     Ok(tx.commit()?)
 }
 
+/// Removes `codes` from the constraint's `keep_codes`, clearing `keep_reason` when
+/// none remain. Writes nothing when no code was actually kept.
 pub fn unkeep(
     log: &mut EditLog,
     constraint: EntityId,
@@ -80,12 +113,7 @@ pub fn unkeep(
     }
     let mut tx = log.transact(&clip_label(format!("Un-kept: {display}")));
     if current.len() != before {
-        if current.is_empty() {
-            tx.set(constraint, "keep_codes", Value::Null);
-            tx.set(constraint, "keep_reason", Value::Null);
-        } else {
-            tx.set(constraint, "keep_codes", codes_value(&current));
-        }
+        write_codes(&mut tx, constraint, &current);
     }
     Ok(tx.commit()?)
 }

@@ -88,7 +88,11 @@ fn keep_anyway_and_unkeep() {
         log.state().field(d, "keep_reason"),
         Some(&Value::from("Raised by the gods"))
     );
-    keep_anyway(&mut log, d, &[IssueCode::new("a.one")], None).unwrap();
+    // Re-keeping an already-kept code with no reason writes nothing.
+    assert_eq!(
+        keep_anyway(&mut log, d, &[IssueCode::new("a.one")], None).unwrap_err(),
+        ConstraintError::Edit(EditError::EmptyTransaction)
+    );
     unkeep(&mut log, d, &[IssueCode::new("a.one")]).unwrap();
     assert_eq!(
         log.state().field(d, "keep_codes"),
@@ -106,6 +110,73 @@ fn keep_anyway_and_unkeep() {
     assert_eq!(
         keep_anyway(&mut log, not, &[IssueCode::new("x")], None).unwrap_err(),
         ConstraintError::NotAConstraint(not)
+    );
+}
+
+#[test]
+fn actions_refuse_deleted_entities() {
+    let mut log = new_log();
+    let d = desert(&mut log);
+    let mut tx = log.transact("delete");
+    tx.delete(d);
+    tx.commit().unwrap();
+
+    // A tombstoned entity is still reachable through `State::entity`, so every
+    // action must filter it out explicitly.
+    assert!(log.state().entity(d).is_some());
+    assert!(log.state().entity(d).unwrap().is_deleted());
+
+    let s = Suggestion {
+        code: IssueCode::new("x"),
+        params: BTreeMap::new(),
+        writes: vec![(d, "name".into(), Value::from("Ghost Sea"))],
+    };
+    let before = log.source_hash();
+    assert_eq!(
+        apply_suggestion(&mut log, &s).unwrap_err(),
+        ConstraintError::UnknownEntity(d)
+    );
+    assert_eq!(log.source_hash(), before);
+
+    assert_eq!(
+        keep_anyway(&mut log, d, &[IssueCode::new("a.one")], Some("why")).unwrap_err(),
+        ConstraintError::UnknownEntity(d)
+    );
+    assert_eq!(
+        unkeep(&mut log, d, &[IssueCode::new("a.one")]).unwrap_err(),
+        ConstraintError::UnknownEntity(d)
+    );
+    assert_eq!(log.source_hash(), before);
+}
+
+#[test]
+fn keep_anyway_writes_nothing_when_unchanged() {
+    let mut log = new_log();
+    let d = desert(&mut log);
+
+    // No codes and no reason: nothing to write.
+    assert_eq!(
+        keep_anyway(&mut log, d, &[], None).unwrap_err(),
+        ConstraintError::Edit(EditError::EmptyTransaction)
+    );
+    // Never the empty-list encoding for "nothing kept".
+    assert_eq!(log.state().field(d, "keep_codes"), None);
+
+    keep_anyway(&mut log, d, &[IssueCode::new("a.one")], None).unwrap();
+    // Already kept, no reason: still nothing to write.
+    assert_eq!(
+        keep_anyway(&mut log, d, &[IssueCode::new("a.one")], None).unwrap_err(),
+        ConstraintError::Edit(EditError::EmptyTransaction)
+    );
+    // A reason is still writable against an unchanged code set.
+    keep_anyway(&mut log, d, &[IssueCode::new("a.one")], Some("by decree")).unwrap();
+    assert_eq!(
+        log.state().field(d, "keep_reason"),
+        Some(&Value::from("by decree"))
+    );
+    assert_eq!(
+        log.state().field(d, "keep_codes"),
+        Some(&Value::List(vec![Value::from("a.one")]))
     );
 }
 
