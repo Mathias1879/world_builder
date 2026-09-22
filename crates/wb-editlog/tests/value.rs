@@ -82,6 +82,35 @@ fn text_and_nesting_limits() {
 }
 
 #[test]
+fn list_depth_eight_round_trips_nine_fails_to_decode() {
+    let mut v = Value::Int(1);
+    for _ in 0..8 {
+        v = Value::List(vec![v]);
+    }
+    let bytes = postcard::to_allocvec(&v).unwrap();
+    let back: Value = postcard::from_bytes(&bytes).unwrap();
+    assert_eq!(back, v);
+
+    let too_deep = Value::List(vec![v]);
+    let bytes = postcard::to_allocvec(&too_deep).unwrap();
+    assert!(postcard::from_bytes::<Value>(&bytes).is_err());
+}
+
+#[test]
+fn pathologically_deep_list_bytes_are_rejected_without_crashing() {
+    // Derive the List tag/length prefix from a real encoding instead of hard-coding
+    // it, so this test still means what it says if the wire format ever changes.
+    let sample = postcard::to_allocvec(&Value::List(vec![Value::Null])).unwrap();
+    let (prefix, suffix) = sample.split_at(sample.len() - 1);
+    assert_eq!(prefix, [8u8, 1u8], "List tag/length encoding changed");
+    assert_eq!(suffix, [0u8], "Null tag encoding changed");
+
+    let mut bytes = prefix.repeat(200_000);
+    bytes.extend_from_slice(suffix);
+    assert!(postcard::from_bytes::<Value>(&bytes).is_err());
+}
+
+#[test]
 fn conversions() {
     assert_eq!(Value::from(true), Value::Bool(true));
     assert_eq!(Value::from(3i64), Value::Int(3));

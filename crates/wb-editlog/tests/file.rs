@@ -1,7 +1,11 @@
 mod common;
 
 use common::{ACTOR_A, AUTHOR, T0, new_log};
-use wb_editlog::{EditError, EditLog, FORMAT_VERSION, FixedClock, ForkFrom, SaveOptions, Value};
+use std::collections::{BTreeMap, BTreeSet};
+use wb_editlog::{
+    Branch, EditError, EditLog, EntityId, FORMAT_VERSION, FieldKey, FieldWrite, FixedClock,
+    ForkFrom, Op, OpId, SaveOptions, State, TxKind, Value, Version, VersionId,
+};
 
 fn sample() -> EditLog {
     let mut log = new_log();
@@ -129,5 +133,219 @@ fn newer_formats_are_refused() {
         EditError::UnsupportedFormat {
             found: FORMAT_VERSION + 1
         }
+    );
+}
+
+// --- Fix round 1 hardening: crafted-file tests below build raw section bytes for a
+// minimal log (empty ops, "main" branch with empty heads) so that META's own
+// consistency checks (heads/base must reference known ops) hold vacuously, letting
+// each test isolate exactly one adversarial section.
+
+const SECTION_HEADER: usize = 4 + 8 + 32;
+
+/// Replaces one section's payload in `bytes` with `new_payload`, recomputing its
+/// length and blake3 checksum, and shifting every following section accordingly.
+fn replace_section(bytes: &[u8], tag: &[u8; 4], new_payload: &[u8]) -> Vec<u8> {
+    let start = section_offset(bytes, tag);
+    let len = u64::from_le_bytes(bytes[start + 4..start + 12].try_into().unwrap()) as usize;
+    let mut out = bytes[..start].to_vec();
+    out.extend_from_slice(tag);
+    out.extend_from_slice(&(new_payload.len() as u64).to_le_bytes());
+    out.extend_from_slice(blake3::hash(new_payload).as_bytes());
+    out.extend_from_slice(new_payload);
+    out.extend_from_slice(&bytes[start + SECTION_HEADER + len..]);
+    out
+}
+
+fn plain_op(id: OpId, parents: BTreeSet<OpId>) -> Op {
+    Op {
+        id,
+        parents,
+        author: AUTHOR,
+        time_ms: T0,
+        kind: TxKind::Edit,
+        label: "t".to_string(),
+        writes: vec![FieldWrite {
+            entity: EntityId::PLANET,
+            field: FieldKey::new("tilt").unwrap(),
+            value: Value::Bool(true),
+        }],
+    }
+}
+
+fn encode_meta(
+    title: &str,
+    authors: BTreeMap<wb_editlog::AuthorId, String>,
+    branches: BTreeMap<String, Branch>,
+    versions: BTreeMap<VersionId, Version>,
+    current_branch: &str,
+    created_ms: u64,
+    modified_ms: u64,
+) -> Vec<u8> {
+    let mut out = Vec::new();
+    out.extend(postcard::to_allocvec(&title.to_string()).unwrap());
+    out.extend(postcard::to_allocvec(&authors).unwrap());
+    out.extend(postcard::to_allocvec(&branches).unwrap());
+    out.extend(postcard::to_allocvec(&versions).unwrap());
+    out.extend(postcard::to_allocvec(&current_branch.to_string()).unwrap());
+    out.extend(postcard::to_allocvec(&created_ms).unwrap());
+    out.extend(postcard::to_allocvec(&modified_ms).unwrap());
+    out
+}
+
+#[test]
+fn duplicate_op_ids_are_rejected() {
+    let base = new_log().to_bytes();
+    let id = OpId {
+        lamport: 1,
+        actor: ACTOR_A,
+    };
+    let op = plain_op(id, BTreeSet::new());
+    let ops = vec![op.clone(), op];
+    let payload = postcard::to_allocvec(&ops).unwrap();
+    let bytes = replace_section(&base, b"OPS\0", &payload);
+    assert_eq!(load(&bytes).unwrap_err(), EditError::DuplicateOp(id));
+}
+
+#[test]
+fn unknown_parent_is_reported() {
+    let base = new_log().to_bytes();
+    let missing = OpId {
+        lamport: 1,
+        actor: ACTOR_A,
+    };
+    let mut parents = BTreeSet::new();
+    parents.insert(missing);
+    let child = OpId {
+        lamport: 2,
+        actor: ACTOR_A,
+    };
+    let op = plain_op(child, parents);
+    let payload = postcard::to_allocvec(&vec![op]).unwrap();
+    let bytes = replace_section(&base, b"OPS\0", &payload);
+    assert_eq!(load(&bytes).unwrap_err(), EditError::UnknownParent(missing));
+}
+
+#[test]
+fn version_seq_overflow_is_corrupt_meta() {
+    let base = new_log().to_bytes();
+    let mut branches = BTreeMap::new();
+    branches.insert("main".to_string(), Branch::default());
+    let mut versions = BTreeMap::new();
+    versions.insert(
+        VersionId {
+            actor: ACTOR_A,
+            seq: u32::MAX,
+        },
+        Version {
+            name: "v1".to_string(),
+            heads: BTreeSet::new(),
+            branch: "main".to_string(),
+            time_ms: T0,
+            author: AUTHOR,
+        },
+    );
+    let meta = encode_meta("", BTreeMap::new(), branches, versions, "main", T0, T0);
+    let bytes = replace_section(&base, b"META", &meta);
+    assert_eq!(
+        load(&bytes).unwrap_err(),
+        EditError::CorruptFile {
+            section: "META".into()
+        }
+    );
+}
+
+#[test]
+fn invalid_branch_name_is_corrupt_meta() {
+    let base = new_log().to_bytes();
+    let mut branches = BTreeMap::new();
+    branches.insert("main".to_string(), Branch::default());
+    branches.insert("bad\u{0}name".to_string(), Branch::default());
+    let meta = encode_meta(
+        "",
+        BTreeMap::new(),
+        branches,
+        BTreeMap::new(),
+        "main",
+        T0,
+        T0,
+    );
+    let bytes = replace_section(&base, b"META", &meta);
+    assert_eq!(
+        load(&bytes).unwrap_err(),
+        EditError::CorruptFile {
+            section: "META".into()
+        }
+    );
+}
+
+#[test]
+fn invalid_current_branch_name_is_corrupt_meta() {
+    let base = new_log().to_bytes();
+    let bad = "bad\u{0}name".to_string();
+    let mut branches = BTreeMap::new();
+    branches.insert(bad.clone(), Branch::default());
+    let meta = encode_meta("", BTreeMap::new(), branches, BTreeMap::new(), &bad, T0, T0);
+    let bytes = replace_section(&base, b"META", &meta);
+    assert_eq!(
+        load(&bytes).unwrap_err(),
+        EditError::CorruptFile {
+            section: "META".into()
+        }
+    );
+}
+
+#[test]
+fn invalid_version_name_is_corrupt_meta() {
+    let base = new_log().to_bytes();
+    let mut branches = BTreeMap::new();
+    branches.insert("main".to_string(), Branch::default());
+    let mut versions = BTreeMap::new();
+    versions.insert(
+        VersionId {
+            actor: ACTOR_A,
+            seq: 0,
+        },
+        Version {
+            name: "".to_string(),
+            heads: BTreeSet::new(),
+            branch: "main".to_string(),
+            time_ms: T0,
+            author: AUTHOR,
+        },
+    );
+    let meta = encode_meta("", BTreeMap::new(), branches, versions, "main", T0, T0);
+    let bytes = replace_section(&base, b"META", &meta);
+    assert_eq!(
+        load(&bytes).unwrap_err(),
+        EditError::CorruptFile {
+            section: "META".into()
+        }
+    );
+}
+
+#[test]
+fn debug_snapshot_mismatch_falls_back_to_materialized_state_instead_of_erroring() {
+    let base = new_log().to_bytes();
+    let mut state = State::new();
+    let bogus = plain_op(
+        OpId {
+            lamport: 1,
+            actor: ACTOR_A,
+        },
+        BTreeSet::new(),
+    );
+    state.apply(&bogus);
+
+    let heads: BTreeSet<OpId> = BTreeSet::new();
+    let mut payload = postcard::to_allocvec(&heads).unwrap();
+    payload.extend(postcard::to_allocvec(&state).unwrap());
+    let bytes = replace_section(&base, b"SNAP", &payload);
+
+    let back = load(&bytes).expect("a mismatched-but-valid snapshot must not fail the load");
+    assert_eq!(
+        back.state().field(EntityId::PLANET, "tilt"),
+        None,
+        "the bogus snapshot state must be discarded in favor of materializing from ops"
     );
 }

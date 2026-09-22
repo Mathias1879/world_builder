@@ -1,5 +1,6 @@
 use crate::error::EditError;
 use crate::ids::AssetRef;
+use core::cell::Cell;
 use core::f64::consts::{FRAC_PI_2, PI};
 use serde::{Deserialize, Serialize};
 use wb_grid::LatLon;
@@ -7,6 +8,36 @@ use wb_world::Geometry;
 
 pub const MAX_TEXT_BYTES: usize = 65_536;
 pub const MAX_LIST_DEPTH: usize = 8;
+
+thread_local! {
+    static LIST_DEPTH: Cell<usize> = const { Cell::new(0) };
+}
+
+/// Restores the thread-local list-nesting depth on every exit path (success,
+/// error, or panic-unwind) out of `de_list`.
+struct ListDepthGuard;
+
+impl Drop for ListDepthGuard {
+    fn drop(&mut self) {
+        LIST_DEPTH.with(|d| d.set(d.get() - 1));
+    }
+}
+
+/// Bounds `List` nesting depth *during deserialization* (not just afterwards in
+/// `canonical`), so a maliciously deep `List` in a `.wbworld` file or postcard
+/// payload cannot blow the stack before validation ever runs.
+fn de_list<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Vec<Value>, D::Error> {
+    let depth = LIST_DEPTH.with(|c| {
+        let n = c.get() + 1;
+        c.set(n);
+        n
+    });
+    let _guard = ListDepthGuard;
+    if depth > MAX_LIST_DEPTH {
+        return Err(serde::de::Error::custom("list nesting exceeds 8 levels"));
+    }
+    Vec::<Value>::deserialize(d)
+}
 
 /// A field value. `Null` means "unset".
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -19,7 +50,7 @@ pub enum Value {
     LatLon(LatLon),
     Geometry(Geometry),
     Asset(AssetRef),
-    List(Vec<Value>),
+    List(#[serde(deserialize_with = "de_list")] Vec<Value>),
 }
 
 /// Wraps a longitude into (−π, π]; `-0.0` becomes `0.0` so equal points hash equally.

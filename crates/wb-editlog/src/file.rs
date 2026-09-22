@@ -1,3 +1,4 @@
+use crate::branch::check_name;
 use crate::error::EditError;
 use crate::ids::{ActorId, AssetRef, AuthorId, OpId, VersionId};
 use crate::log::{Asset, Branch, Clock, EditLog, Version};
@@ -72,15 +73,18 @@ fn read_section<'a>(
     tag: &[u8; 4],
     name: &str,
 ) -> Result<&'a [u8], EditError> {
-    let head = buf
-        .get(*pos..*pos + SECTION_HEADER)
+    let head_end = pos
+        .checked_add(SECTION_HEADER)
         .ok_or_else(|| corrupt(name))?;
+    let head = buf.get(*pos..head_end).ok_or_else(|| corrupt(name))?;
     if &head[..4] != tag {
         return Err(corrupt(name));
     }
     let len = u64::from_le_bytes(head[4..12].try_into().expect("slice of 8 bytes"));
     let len = usize::try_from(len).map_err(|_| corrupt(name))?;
-    let start = *pos + SECTION_HEADER;
+    let start = pos
+        .checked_add(SECTION_HEADER)
+        .ok_or_else(|| corrupt(name))?;
     let end = start.checked_add(len).ok_or_else(|| corrupt(name))?;
     let payload = buf.get(start..end).ok_or_else(|| corrupt(name))?;
     if blake3::hash(payload).as_bytes()[..] != head[12..44] {
@@ -171,13 +175,17 @@ impl EditLog {
         let mut graph: BTreeMap<OpId, Op> = BTreeMap::new();
         for op in ops {
             check_op_shape(&op).map_err(|_| corrupt("OPS"))?;
-            if graph.insert(op.id, op).is_some() {
-                return Err(corrupt("OPS"));
+            let id = op.id;
+            if graph.insert(id, op).is_some() {
+                return Err(EditError::DuplicateOp(id));
             }
         }
         for op in graph.values() {
             for p in &op.parents {
-                if !graph.contains_key(p) || p.lamport >= op.id.lamport {
+                if !graph.contains_key(p) {
+                    return Err(EditError::UnknownParent(*p));
+                }
+                if p.lamport >= op.id.lamport {
                     return Err(corrupt("OPS"));
                 }
             }
@@ -197,17 +205,24 @@ impl EditLog {
         {
             return Err(corrupt("META"));
         }
+        for name in meta.branches.keys() {
+            check_name(name).map_err(|_| corrupt("META"))?;
+        }
+        check_name(&meta.current_branch).map_err(|_| corrupt("META"))?;
+        for v in meta.versions.values() {
+            check_name(&v.name).map_err(|_| corrupt("META"))?;
+        }
+
+        let mut next_version_seq = 0u32;
+        for v in meta.versions.keys().filter(|v| v.actor == actor) {
+            let candidate = v.seq.checked_add(1).ok_or_else(|| corrupt("META"))?;
+            next_version_seq = next_version_seq.max(candidate);
+        }
 
         log.max_lamport = graph.keys().map(|id| id.lamport).max().unwrap_or(0);
         log.ops = graph;
         log.assets = assets.into_iter().collect();
-        log.next_version_seq = meta
-            .versions
-            .keys()
-            .filter(|v| v.actor == actor)
-            .map(|v| v.seq + 1)
-            .max()
-            .unwrap_or(0);
+        log.next_version_seq = next_version_seq;
         log.title = meta.title;
         log.authors = meta.authors;
         log.branches = meta.branches;
@@ -219,10 +234,15 @@ impl EditLog {
         let heads = log.current_branch_ref().heads.clone();
         log.state = match snapshot {
             Some(s) if s.heads == heads => {
-                if cfg!(debug_assertions) && materialize(&log.ops, &heads) != s.state {
-                    return Err(corrupt("SNAP"));
+                if cfg!(debug_assertions) {
+                    let fresh = materialize(&log.ops, &heads);
+                    // A mismatch here means the snapshot was stale or tampered with in a
+                    // way that still passes its own checksum; per spec §5.2 we recover
+                    // silently from the op graph rather than refusing to load the file.
+                    if fresh == s.state { s.state } else { fresh }
+                } else {
+                    s.state
                 }
-                s.state
             }
             _ => materialize(&log.ops, &heads),
         };

@@ -25,7 +25,7 @@ pub struct TimelineEntry {
     pub forks: Vec<String>,
 }
 
-fn check_name(name: &str) -> Result<(), EditError> {
+pub(crate) fn check_name(name: &str) -> Result<(), EditError> {
     if name.is_empty() || name.len() > 64 || name.chars().any(char::is_control) {
         return Err(EditError::InvalidName(name.to_string()));
     }
