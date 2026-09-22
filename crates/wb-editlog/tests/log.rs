@@ -194,3 +194,10 @@ fn title_and_author_names() {
     log.set_author_name("Matthew");
     assert_eq!(log.title(), "Aethoria");
 }
+
+// --- Final fix 5: an EditLog can move between threads and be shared behind a lock.
+#[test]
+fn edit_log_is_send_and_sync() {
+    fn assert_send_sync<T: Send + Sync>() {}
+    assert_send_sync::<wb_editlog::EditLog>();
+}

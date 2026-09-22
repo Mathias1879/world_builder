@@ -10,8 +10,9 @@ use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 use wb_world::SourceHash;
 
-/// Wall-clock source (display only; never used for ordering).
-pub trait Clock {
+/// Wall-clock source (display only; never used for ordering). `Send + Sync` so an
+/// `EditLog` can be moved to or shared with another thread.
+pub trait Clock: Send + Sync {
     fn now_ms(&self) -> u64;
 }
 
@@ -26,11 +27,12 @@ impl Clock for FixedClock {
 }
 
 /// Checks an entity of one kind after a transaction.
-pub trait Validator {
+/// `Send + Sync` so an `EditLog` can be moved to or shared with another thread.
+pub trait Validator: Send + Sync {
     fn validate(&self, entity: EntityView<'_>) -> Result<(), String>;
 }
 
-impl<F: Fn(EntityView<'_>) -> Result<(), String>> Validator for F {
+impl<F: Fn(EntityView<'_>) -> Result<(), String> + Send + Sync> Validator for F {
     fn validate(&self, entity: EntityView<'_>) -> Result<(), String> {
         self(entity)
     }
