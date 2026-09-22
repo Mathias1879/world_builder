@@ -1,0 +1,29 @@
+[workspace]
+resolver = "3"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.90"
+license = "LicenseRef-Proprietary"
+publish = false
+
+[workspace.dependencies]
+libm = "0.2"
+blake3 = { version = "1", features = ["pure"] }
+proptest = { version = "1", default-features = false, features = ["std"] }
+wb-grid = { path = "crates/wb-grid" }
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+disallowed_methods = "deny"
+disallowed_types = "deny"
+
+[profile.dev.package."*"]
+opt-level = 2
+
+[profile.test]
+opt-level = 1

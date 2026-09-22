@@ -113,9 +113,9 @@ Rejected alternatives: equirectangular raster (pole distortion corrupts simulati
 
 ### 3.3 Level-of-detail guarantees (enforced by property tests)
 
-1. **Coarse is truth** — each 2×2 child block's mean elevation equals its parent cell's elevation. Refinement adds detail; it never moves features.
+1. **Coarse is truth** — each 2×2 child block's **area-weighted** mean elevation equals its parent cell's elevation, to f32 rounding (≤ 2 mm for elevations). Refinement adds detail; it never moves features.
 2. **Water runs downhill at every level** — drainage is solved coarse and refined; every river cell drains to a lower neighbour; lakes neither appear nor vanish across zoom.
-3. **Seamless tiles** — neighbouring tiles (including across cube faces) share edge cells; ridges and valleys continue.
+3. **Seamless tiles** — stages read tiles through a one-cell **apron** copied from neighbouring tiles (including across cube faces), and neighbour relations are mutual on every seam; ridges and valleys continue.
 4. **Detail follows the landscape** — refinement detail is conditioned on the terrain's own properties (young sharp ridges, old rounded ranges, flat floodplains), not uniform noise.
 
 ### 3.4 Extent
