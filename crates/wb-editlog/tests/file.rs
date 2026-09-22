@@ -349,3 +349,94 @@ fn debug_snapshot_mismatch_falls_back_to_materialized_state_instead_of_erroring(
         "the bogus snapshot state must be discarded in favor of materializing from ops"
     );
 }
+
+// --- Final fix 1: undo/redo stacks from a file must reference undoable ops that are
+// reachable from their branch, or `undo()`/`redo()` would hit an internal `expect`.
+
+/// A log with one edit (undone, so it sits on the redo stack) and the Undo op itself.
+fn undone_log() -> EditLog {
+    let mut log = new_log();
+    let mut tx = log.transact("tilt");
+    tx.set(EntityId::PLANET, "tilt", 1i64);
+    tx.commit().unwrap();
+    log.undo().unwrap();
+    log
+}
+
+fn with_main_stacks(log: &EditLog, undo: Vec<OpId>, redo: Vec<OpId>) -> Vec<u8> {
+    let mut branches: BTreeMap<String, Branch> = log
+        .branches()
+        .map(|(n, b)| (n.to_string(), b.clone()))
+        .collect();
+    let main = branches.get_mut("main").unwrap();
+    main.undo = undo;
+    main.redo = redo;
+    let versions = log.versions().map(|(k, v)| (*k, v.clone())).collect();
+    let meta = encode_meta(
+        log.title(),
+        BTreeMap::new(),
+        branches,
+        versions,
+        "main",
+        T0,
+        T0,
+    );
+    replace_section(&log.to_bytes(), b"META", &meta)
+}
+
+fn corrupt_meta() -> EditError {
+    EditError::CorruptFile {
+        section: "META".into(),
+    }
+}
+
+#[test]
+fn undo_stack_with_unknown_op_is_corrupt_meta() {
+    let ghost = OpId {
+        lamport: 99,
+        actor: ACTOR_A,
+    };
+    let bytes = with_main_stacks(&new_log(), vec![ghost], Vec::new());
+    assert_eq!(load(&bytes).unwrap_err(), corrupt_meta());
+}
+
+#[test]
+fn redo_stack_with_unknown_op_is_corrupt_meta() {
+    let ghost = OpId {
+        lamport: 99,
+        actor: ACTOR_A,
+    };
+    let bytes = with_main_stacks(&new_log(), Vec::new(), vec![ghost]);
+    assert_eq!(load(&bytes).unwrap_err(), corrupt_meta());
+}
+
+#[test]
+fn undo_stack_referencing_an_undo_op_is_corrupt_meta() {
+    let log = undone_log();
+    let undo_op = *log.heads().iter().next().unwrap();
+    assert!(matches!(log.op(undo_op).unwrap().kind, TxKind::Undo(_)));
+    let bytes = with_main_stacks(&log, vec![undo_op], Vec::new());
+    assert_eq!(load(&bytes).unwrap_err(), corrupt_meta());
+}
+
+#[test]
+fn undo_stack_op_not_reachable_from_its_branch_is_corrupt_meta() {
+    let mut log = new_log();
+    log.fork("side", ForkFrom::Current).unwrap();
+    log.switch("side").unwrap();
+    let mut tx = log.transact("side edit");
+    tx.set(EntityId::PLANET, "tilt", 1i64);
+    let side_op = tx.commit().unwrap();
+    log.switch("main").unwrap();
+    let bytes = with_main_stacks(&log, vec![side_op], Vec::new());
+    assert_eq!(load(&bytes).unwrap_err(), corrupt_meta());
+}
+
+#[test]
+fn valid_undo_redo_stacks_still_load_and_work() {
+    let log = undone_log();
+    let mut back = load(&log.to_bytes()).unwrap();
+    assert!(back.can_redo());
+    back.redo().unwrap();
+    back.undo().unwrap();
+}

@@ -2,8 +2,8 @@ use crate::branch::check_name;
 use crate::error::EditError;
 use crate::ids::{ActorId, AssetRef, AuthorId, OpId, VersionId};
 use crate::log::{Asset, Branch, Clock, EditLog, Version};
-use crate::op::Op;
-use crate::state::{State, materialize};
+use crate::op::{Op, TxKind};
+use crate::state::{State, materialize, reachable};
 use crate::sync::check_op_shape;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -211,6 +211,23 @@ impl EditLog {
         check_name(&meta.current_branch).map_err(|_| corrupt("META"))?;
         for v in meta.versions.values() {
             check_name(&v.name).map_err(|_| corrupt("META"))?;
+        }
+        // Undo/redo stacks may only name undoable ops (Edit, Import, Restore) that are
+        // part of their own branch's history; `undo()`/`redo()` rely on this.
+        for b in meta.branches.values() {
+            if b.undo.is_empty() && b.redo.is_empty() {
+                continue;
+            }
+            let history = reachable(&graph, &b.heads);
+            let undoable = |id: &OpId| {
+                history.contains(id)
+                    && graph.get(id).is_some_and(|op| {
+                        matches!(op.kind, TxKind::Edit | TxKind::Import | TxKind::Restore(_))
+                    })
+            };
+            if !b.undo.iter().chain(&b.redo).all(undoable) {
+                return Err(corrupt("META"));
+            }
         }
 
         let mut next_version_seq = 0u32;
