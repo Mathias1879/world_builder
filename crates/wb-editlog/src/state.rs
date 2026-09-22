@@ -110,6 +110,21 @@ impl State {
         self.entities.is_empty()
     }
 
+    /// Structural soundness of a state read from a file: the planet exists with kind
+    /// `"planet"`, no value is `Null`, and every value is bitwise canonical.
+    pub(crate) fn is_well_formed(&self) -> bool {
+        let planet_ok = matches!(
+            self.field(EntityId::PLANET, KIND),
+            Some(Value::Text(k)) if k == "planet"
+        );
+        planet_ok
+            && self.entities.values().all(|fields| {
+                fields
+                    .iter()
+                    .all(|(k, v)| *v != Value::Null && crate::value::is_canonical(v, k.as_str()))
+            })
+    }
+
     /// `blake3("wb-source-v1" ‖ postcard(state))` — state, not history.
     pub fn source_hash(&self) -> SourceHash {
         let bytes = postcard::to_allocvec(self).expect("state is always serializable");

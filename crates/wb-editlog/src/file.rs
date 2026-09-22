@@ -259,17 +259,24 @@ impl EditLog {
 
         let heads = log.current_branch_ref().heads.clone();
         log.state = match snapshot {
-            Some(s) if s.heads == heads => {
+            Some(s) if s.heads == heads && s.state.is_well_formed() => {
                 if cfg!(debug_assertions) {
                     let fresh = materialize(&log.ops, &heads);
                     // A mismatch here means the snapshot was stale or tampered with in a
                     // way that still passes its own checksum; per spec §5.2 we recover
                     // silently from the op graph rather than refusing to load the file.
-                    if fresh == s.state { s.state } else { fresh }
+                    // Compared bitwise (postcard bytes), since `PartialEq` treats
+                    // `-0.0 == 0.0`.
+                    if encode(&fresh) == encode(&s.state) {
+                        s.state
+                    } else {
+                        fresh
+                    }
                 } else {
                     s.state
                 }
             }
+            // No snapshot, stale heads, or structurally unsound: rebuild from ops (§5.2).
             _ => materialize(&log.ops, &heads),
         };
         Ok(log)

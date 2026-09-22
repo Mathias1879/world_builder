@@ -124,6 +124,33 @@ impl Value {
     }
 }
 
+/// True if `value` nests `List`s at most `MAX_LIST_DEPTH` deep. Iterative and
+/// borrow-only, so a caller-built pathological value cannot overflow the stack here.
+pub(crate) fn list_depth_ok(value: &Value) -> bool {
+    let mut stack: Vec<(&Value, usize)> = vec![(value, 0)];
+    while let Some((v, depth)) = stack.pop() {
+        if let Value::List(items) = v {
+            if depth >= MAX_LIST_DEPTH {
+                return false;
+            }
+            stack.extend(items.iter().map(|i| (i, depth + 1)));
+        }
+    }
+    true
+}
+
+/// True if `value` is exactly (bitwise, via its postcard encoding) its canonical form,
+/// so e.g. a `-0.0` latitude is caught even though `-0.0 == 0.0`.
+pub(crate) fn is_canonical(value: &Value, field: &str) -> bool {
+    if !list_depth_ok(value) {
+        return false;
+    }
+    match value.clone().canonical(field) {
+        Ok(canon) => postcard::to_allocvec(&canon).ok() == postcard::to_allocvec(value).ok(),
+        Err(_) => false,
+    }
+}
+
 impl From<bool> for Value {
     fn from(v: bool) -> Self {
         Value::Bool(v)

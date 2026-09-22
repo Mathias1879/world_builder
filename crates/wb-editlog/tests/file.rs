@@ -324,7 +324,9 @@ fn invalid_version_name_is_corrupt_meta() {
     );
 }
 
+/// Debug-only: release builds trust a structurally sound snapshot without re-materializing.
 #[test]
+#[cfg_attr(not(debug_assertions), ignore)]
 fn debug_snapshot_mismatch_falls_back_to_materialized_state_instead_of_erroring() {
     let base = new_log().to_bytes();
     let mut state = State::new();
@@ -480,4 +482,76 @@ fn nonzero_reserved_header_field_is_corrupt_header() {
     let mut bytes = new_log().to_bytes();
     bytes[6] = 1;
     assert_eq!(load(&bytes).unwrap_err(), corrupt_header());
+}
+
+// --- Final fix 6: a SNAP whose heads match is only trusted if it is structurally sound;
+// otherwise the loader silently materializes from ops (spec §5.2).
+
+type RawState = BTreeMap<EntityId, BTreeMap<FieldKey, Value>>;
+
+fn pin_log() -> EditLog {
+    let mut log = new_log();
+    let mut tx = log.transact("pin");
+    tx.create(
+        "test.pin",
+        [("at", Value::LatLon(wb_grid::LatLon { lat: 0.0, lon: 0.5 }))],
+    );
+    tx.commit().unwrap();
+    log
+}
+
+fn raw_state(log: &EditLog) -> RawState {
+    log.state()
+        .entities()
+        .map(|e| (e.id, e.fields.clone()))
+        .collect()
+}
+
+fn with_snapshot(log: &EditLog, state: &RawState) -> Vec<u8> {
+    let mut payload = postcard::to_allocvec(log.heads()).unwrap();
+    payload.extend(postcard::to_allocvec(state).unwrap());
+    replace_section(&log.to_bytes(), b"SNAP", &payload)
+}
+
+#[test]
+fn snapshot_without_planet_falls_back_to_ops() {
+    let log = pin_log();
+    let mut state = raw_state(&log);
+    state.remove(&EntityId::PLANET);
+    let back = load(&with_snapshot(&log, &state)).unwrap();
+    assert_eq!(
+        back.state().entity(EntityId::PLANET).unwrap().kind(),
+        Some("planet")
+    );
+    assert_eq!(back.source_hash(), log.source_hash());
+}
+
+#[test]
+fn snapshot_with_null_value_falls_back_to_ops() {
+    let log = pin_log();
+    let mut state = raw_state(&log);
+    state
+        .get_mut(&EntityId::PLANET)
+        .unwrap()
+        .insert(FieldKey::new("tilt").unwrap(), Value::Null);
+    let back = load(&with_snapshot(&log, &state)).unwrap();
+    assert_eq!(back.state().field(EntityId::PLANET, "tilt"), None);
+    assert_eq!(back.source_hash(), log.source_hash());
+}
+
+#[test]
+fn snapshot_with_negative_zero_latitude_falls_back_to_ops() {
+    let log = pin_log();
+    let mut state = raw_state(&log);
+    for fields in state.values_mut() {
+        if let Some(Value::LatLon(p)) = fields.get_mut("at") {
+            p.lat = -0.0;
+        }
+    }
+    let back = load(&with_snapshot(&log, &state)).unwrap();
+    assert_eq!(
+        back.source_hash(),
+        log.source_hash(),
+        "-0.0 == 0.0 under PartialEq, but the snapshot is not bitwise canonical"
+    );
 }
