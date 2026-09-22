@@ -1,5 +1,6 @@
 //! Constraints & Feasibility: checkers, graded verdicts, keep-anyway, suggestions.
 
+mod actions;
 mod checker;
 mod error;
 mod evaluate;
@@ -9,6 +10,7 @@ mod kinds;
 mod model;
 mod templates;
 
+pub use actions::{apply_suggestion, keep_anyway, set_realism, unkeep};
 pub use checker::{
     CheckContext, Checker, CheckerRegistry, ConstraintView, KindPattern, Terrain, UnknownTerrain,
 };
