@@ -19,6 +19,27 @@ fn centroid_and_midpoint() {
 }
 
 #[test]
+fn antipodal_midpoint_is_degenerate_and_returns_the_first_point() {
+    // Antipodal points have no meaningful great-circle midpoint: every point on the
+    // bisecting great circle is equidistant, and `a + b` is the zero vector.
+    let a = d(10.0, 20.0);
+    let b = d(-10.0, -160.0);
+    assert!(
+        a.to_vec3().plus(b.to_vec3()).length() < 1e-12,
+        "fixture must be antipodal"
+    );
+    let m = midpoint(a, b);
+    assert!(m.lat.is_finite() && m.lon.is_finite(), "never NaN");
+    assert_eq!(deg(m), deg(a));
+    // The same guard protects `samples`, which midpoints consecutive vertices.
+    assert!(
+        samples(&[a, b], true)
+            .iter()
+            .all(|p| p.lat.is_finite() && p.lon.is_finite())
+    );
+}
+
+#[test]
 fn samples_include_midpoints() {
     let ring = [d(0.0, 0.0), d(0.0, 10.0), d(10.0, 10.0)];
     assert_eq!(samples(&ring, false).len(), 5);
