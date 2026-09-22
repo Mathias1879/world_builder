@@ -94,6 +94,13 @@ fn optional_float(e: &EntityView<'_>, field: &str) -> Result<(), String> {
     }
 }
 
+fn optional_text(e: &EntityView<'_>, field: &str) -> Result<(), String> {
+    match e.get(field) {
+        None | Some(Value::Text(_)) => Ok(()),
+        _ => Err(format!("{field} must be text")),
+    }
+}
+
 fn common(e: &EntityView<'_>) -> Result<(), String> {
     one_of(e, "strength", &["target", "hard"], false)?;
     match e.get("tolerance") {
@@ -140,7 +147,8 @@ fn validate(kind: &str, e: &EntityView<'_>) -> Result<(), String> {
         },
         "civ.settlement" => {
             need(point(e, "at"), "at")?;
-            need(text(e, "name"), "name")
+            need(text(e, "name"), "name")?;
+            optional_text(e, "role")
         }
         "rule.region" => {
             need(polygon(e, "area"), "area")?;

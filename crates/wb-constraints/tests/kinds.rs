@@ -45,6 +45,19 @@ fn valid_entities_commit_and_accessors_read_them() {
     assert_eq!(float(&v, "tolerance"), Some(0.2));
     let (pts, closed) = shape(&v).unwrap();
     assert_eq!((pts.len(), closed), (3, true));
+
+    let mut tx = log.transact("settlement");
+    let s = tx.create(
+        "civ.settlement",
+        [
+            ("at", Value::LatLon(LatLon::from_degrees(10.0, 20.0))),
+            ("name", Value::from("Kaldros")),
+            ("role", Value::from("capital")),
+        ],
+    );
+    tx.commit().unwrap();
+    let v = log.state().entity(s).unwrap();
+    assert_eq!(text(&v, "role"), Some("capital"));
 }
 
 fn rejected(kind: &str, fields: Vec<(&str, Value)>) {
@@ -100,4 +113,12 @@ fn validators_reject_bad_shapes_and_enums() {
         vec![("area", sq()), ("strength", Value::from("firm"))],
     );
     rejected("feature.hills", vec![("peak_m", Value::Float(300.0))]);
+    rejected(
+        "civ.settlement",
+        vec![
+            ("at", Value::LatLon(LatLon::from_degrees(0.0, 0.0))),
+            ("name", Value::from("Kaldros")),
+            ("role", Value::Float(5.0)),
+        ],
+    );
 }
