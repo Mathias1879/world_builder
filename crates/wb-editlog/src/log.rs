@@ -69,10 +69,7 @@ pub struct EditLog {
     pub(crate) max_lamport: u64,
     pub(crate) branches: BTreeMap<String, Branch>,
     pub(crate) current: String,
-    // Read by Task 5+ (versions/restore); unused until then.
-    #[allow(dead_code)]
     pub(crate) versions: BTreeMap<VersionId, Version>,
-    #[allow(dead_code)]
     pub(crate) next_version_seq: u32,
     pub(crate) assets: BTreeMap<AssetRef, Asset>,
     pub(crate) validators: BTreeMap<EntityKind, Box<dyn Validator>>,
