@@ -14,6 +14,9 @@ libm = "0.2"
 blake3 = { version = "1", features = ["pure"] }
 proptest = { version = "1", default-features = false, features = ["std"] }
 wb-grid = { path = "crates/wb-grid" }
+serde = { version = "1", features = ["derive"] }
+postcard = { version = "1", default-features = false, features = ["alloc"] }
+wb-world = { path = "crates/wb-world" }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

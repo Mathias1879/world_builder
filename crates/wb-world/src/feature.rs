@@ -6,6 +6,7 @@ pub struct FeatureId(pub u64);
 
 /// Resolution-independent geometry in latitude/longitude.
 #[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum Geometry {
     Point(LatLon),
     LineString(Vec<LatLon>),

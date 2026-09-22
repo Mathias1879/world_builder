@@ -1,5 +1,5 @@
 [package]
-name = "wb-grid"
+name = "wb-editlog"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -7,14 +7,15 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
+wb-grid = { workspace = true, features = ["serde"] }
+wb-world = { workspace = true, features = ["serde"] }
 libm.workspace = true
-serde = { workspace = true, optional = true }
+blake3.workspace = true
+serde.workspace = true
+postcard.workspace = true
 
 [dev-dependencies]
 proptest.workspace = true
-
-[features]
-serde = ["dep:serde"]
 
 [lints]
 workspace = true
