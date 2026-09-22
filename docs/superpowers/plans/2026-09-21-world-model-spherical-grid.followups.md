@@ -23,7 +23,7 @@ should pick it up.
 
 ## Follow-ups by owner
 **Edit Log [2]**
-- Canonicalize lat/lon at the log boundary (`LatLon::from_degrees` does not wrap lon into (−π, π]).
+- ✅ Done in Edit Log: lat/lon canonicalized at the log boundary (`Value::canonical`, longitudes wrapped into (−π, π], `-0.0` → `0.0`).
 - Always construct `TileId`/`CellId` via `new()`; fields are public and bypass validation.
 
 **Pipeline stage contract [4]**
