@@ -150,3 +150,19 @@ fn applied_ops_extend_the_current_branch_only() {
     let id = tx.commit().unwrap();
     assert_eq!(b.op(id).unwrap().parents, *a.heads());
 }
+
+#[test]
+fn apply_ops_updates_modified_time() {
+    let (a, _, _) = seeded_pair();
+    let mut c = wb_editlog::EditLog::new(
+        wb_editlog::ActorId([6; 16]),
+        common::AUTHOR,
+        Box::new(wb_editlog::FixedClock(common::T0 + 500)),
+    );
+    assert_eq!(c.modified_ms(), common::T0 + 500);
+    c.apply_ops(Vec::new()).unwrap();
+    assert_eq!(c.modified_ms(), common::T0 + 500);
+    c.apply_ops(a.ops_since(&BTreeSet::new())).unwrap();
+    assert_eq!(c.modified_ms(), common::T0 + 500);
+    assert_eq!(c.ops_since(&BTreeSet::new()).len(), 1);
+}

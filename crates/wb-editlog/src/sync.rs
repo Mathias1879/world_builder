@@ -76,6 +76,8 @@ impl EditLog {
             .copied()
             .collect();
 
+        // Only update if there are incoming ops
+        let has_incoming = !incoming.is_empty();
         self.ops.extend(incoming);
         let cur = self.current.clone();
         let branch = self
@@ -90,12 +92,25 @@ impl EditLog {
             .collect();
         let parents: BTreeSet<OpId> = heads
             .iter()
-            .flat_map(|h| self.ops[h].parents.iter().copied())
+            .flat_map(|h| {
+                self.ops
+                    .get(h)
+                    .expect("heads only contain known ops")
+                    .parents
+                    .iter()
+                    .copied()
+            })
             .collect();
         let ancestors = reachable(&self.ops, &parents);
         heads.retain(|h| !ancestors.contains(h));
         branch.heads = heads.clone();
         self.state = materialize(&self.ops, &heads);
+
+        // Update modified time only if non-empty apply
+        if has_incoming {
+            self.modified_ms = self.clock.now_ms();
+        }
+
         Ok(())
     }
 }

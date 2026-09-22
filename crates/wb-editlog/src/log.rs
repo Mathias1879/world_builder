@@ -76,7 +76,6 @@ pub struct EditLog {
     pub(crate) state: State,
     pub(crate) title: String,
     pub(crate) authors: BTreeMap<AuthorId, String>,
-    #[allow(dead_code)]
     pub(crate) created_ms: u64,
     pub(crate) modified_ms: u64,
 }
@@ -147,6 +146,14 @@ impl EditLog {
 
     pub fn source_hash(&self) -> SourceHash {
         self.state.source_hash()
+    }
+
+    pub fn created_ms(&self) -> u64 {
+        self.created_ms
+    }
+
+    pub fn modified_ms(&self) -> u64 {
+        self.modified_ms
     }
 
     pub fn heads(&self) -> &BTreeSet<OpId> {
