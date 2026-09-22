@@ -9,7 +9,7 @@ publish.workspace = true
 [dependencies]
 wb-grid = { workspace = true, features = ["serde"] }
 wb-world = { workspace = true, features = ["serde"] }
-wb-editlog = { path = "../wb-editlog" }
+wb-editlog.workspace = true
 libm.workspace = true
 blake3.workspace = true
 serde.workspace = true

@@ -35,7 +35,8 @@ impl Checker for LatitudeSanityCheck {
             (Some("feature.forest"), Some("tropical")) if lat.abs() > 35.0 => {
                 issue("climate.tropical_forest_high_latitude", 0.5)
             }
-            (Some("feature.forest"), Some("boreal")) if lat.abs() < 30.0 => {
+            // Spec §7: "within ±30°", inclusive, as the glacier arm's ±25° already is.
+            (Some("feature.forest"), Some("boreal")) if lat.abs() <= 30.0 => {
                 issue("climate.boreal_forest_low_latitude", 0.4)
             }
             _ => Vec::new(),

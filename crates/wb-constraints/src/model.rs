@@ -158,6 +158,13 @@ pub struct Report {
 }
 
 impl Report {
+    /// Counts and hashes the verdicts **in the order given**.
+    ///
+    /// The hash is `blake3("wb-report-v1" ‖ postcard(verdicts))`, so verdict order is
+    /// part of it: two reports over the same world in different orders hash
+    /// differently. Ordering is therefore the caller's responsibility.
+    /// [`crate::evaluate`] supplies `EntityId` order, which is what the cross-target
+    /// golden pins down; anything building a `Report` by hand must sort to match.
     pub fn new(verdicts: Vec<Verdict>) -> Report {
         let mut counts = Counts::default();
         for v in &verdicts {

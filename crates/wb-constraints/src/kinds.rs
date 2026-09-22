@@ -2,6 +2,18 @@ use wb_editlog::{EditLog, EntityId, EntityKind, EntityView, Value};
 use wb_grid::LatLon;
 use wb_world::Geometry;
 
+/// The v1 constraint-kind catalog — closed, and deliberately so.
+///
+/// `is_constraint_kind` is the only gate on what [`crate::evaluate`] looks at, so an
+/// entity whose kind is not listed here is silently ignored: no verdict, no error, no
+/// warning. That is the wanted behaviour for non-constraint entities (`import.base_map`
+/// and friends), but it also means a typo'd or future kind simply disappears from the
+/// report.
+///
+/// The intended extension is a catalog carried in [`crate::CheckContext`] rather than a
+/// `const` — so the pipeline, Custom Fields, and Codex import can register kinds — and
+/// it is a follow-up for Pipeline [4], not a v1 change. See
+/// `docs/superpowers/plans/2026-09-22-constraints.followups.md`.
 pub const CONSTRAINT_KINDS: &[&str] = &[
     "feature.mountain_range",
     "feature.hills",
