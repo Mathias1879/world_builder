@@ -1,7 +1,9 @@
 use crate::error::ConstraintError;
 use crate::evaluate::realism_of;
+use crate::kinds::KindCatalog;
 use crate::model::Finding;
 use std::collections::BTreeMap;
+use std::sync::OnceLock;
 use wb_editlog::{EntityView, State};
 use wb_grid::LatLon;
 use wb_world::Planet;
@@ -35,20 +37,40 @@ impl Terrain for UnknownTerrain {
     }
 }
 
+/// The starter catalog, so `CheckContext::new` can hand out a `&'static KindCatalog`.
+fn starter_catalog() -> &'static KindCatalog {
+    static STARTER: OnceLock<KindCatalog> = OnceLock::new();
+    STARTER.get_or_init(KindCatalog::with_starter_kinds)
+}
+
 pub struct CheckContext<'a> {
     pub state: &'a State,
     pub planet: Planet,
     pub realism: f64,
     pub terrain: &'a dyn Terrain,
+    /// The kinds [`crate::evaluate`] will judge.
+    pub catalog: &'a KindCatalog,
 }
 
 impl<'a> CheckContext<'a> {
+    /// A context over the starter kinds only.
     pub fn new(state: &'a State, planet: Planet, terrain: &'a dyn Terrain) -> Self {
+        CheckContext::with_catalog(state, planet, terrain, starter_catalog())
+    }
+
+    /// A context over `catalog` — how a subsystem gets its own kinds evaluated.
+    pub fn with_catalog(
+        state: &'a State,
+        planet: Planet,
+        terrain: &'a dyn Terrain,
+        catalog: &'a KindCatalog,
+    ) -> Self {
         CheckContext {
             state,
             planet,
             realism: realism_of(state),
             terrain,
+            catalog,
         }
     }
 }

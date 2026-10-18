@@ -1,6 +1,54 @@
+use std::collections::BTreeSet;
 use wb_editlog::{EditLog, EntityId, EntityKind, EntityView, Value};
 use wb_grid::LatLon;
 use wb_world::Geometry;
+
+/// The set of entity kinds Constraints judges.
+///
+/// [`crate::evaluate`] visits a live entity only when its kind is in the catalog carried
+/// by [`crate::CheckContext`], so each subsystem registers the kinds it owns and nothing
+/// else needs a central list. `with_starter_kinds` seeds the v1 catalog
+/// ([`CONSTRAINT_KINDS`]); `wb-astro` and later subsystems `register` onto it.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct KindCatalog {
+    kinds: BTreeSet<String>,
+}
+
+impl KindCatalog {
+    pub fn new() -> Self {
+        KindCatalog::default()
+    }
+
+    pub fn with_starter_kinds() -> Self {
+        let mut c = KindCatalog::new();
+        for &k in CONSTRAINT_KINDS {
+            c.register(k);
+        }
+        c
+    }
+
+    /// Adds a kind. Registering the same kind twice is harmless.
+    pub fn register(&mut self, kind: &str) {
+        self.kinds.insert(kind.to_string());
+    }
+
+    pub fn contains(&self, kind: &str) -> bool {
+        self.kinds.contains(kind)
+    }
+
+    /// Registered kinds in sorted order.
+    pub fn kinds(&self) -> impl Iterator<Item = &str> {
+        self.kinds.iter().map(String::as_str)
+    }
+
+    pub fn len(&self) -> usize {
+        self.kinds.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.kinds.is_empty()
+    }
+}
 
 /// The v1 constraint-kind catalog — closed, and deliberately so.
 ///
@@ -10,10 +58,9 @@ use wb_world::Geometry;
 /// and friends), but it also means a typo'd or future kind simply disappears from the
 /// report.
 ///
-/// The intended extension is a catalog carried in [`crate::CheckContext`] rather than a
-/// `const` — so the pipeline, Custom Fields, and Codex import can register kinds — and
-/// it is a follow-up for Pipeline [4], not a v1 change. See
-/// `docs/superpowers/plans/2026-09-22-constraints.followups.md`.
+/// The extension point is [`KindCatalog`], carried in [`crate::CheckContext`]; this array
+/// is the catalog `KindCatalog::with_starter_kinds` seeds, and the fallback
+/// `is_constraint_kind` reports on.
 pub const CONSTRAINT_KINDS: &[&str] = &[
     "feature.mountain_range",
     "feature.hills",
@@ -28,6 +75,10 @@ pub const CONSTRAINT_KINDS: &[&str] = &[
     "lore.relative_position",
 ];
 
+/// Whether `kind` is in the **starter** catalog.
+///
+/// Kept for callers that have no [`CheckContext`]; [`crate::evaluate`] uses the context's
+/// [`KindCatalog`], which may hold more.
 pub fn is_constraint_kind(kind: &str) -> bool {
     CONSTRAINT_KINDS.contains(&kind)
 }

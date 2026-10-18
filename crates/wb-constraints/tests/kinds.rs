@@ -1,9 +1,13 @@
+mod common;
+
+use common::{add, band, new_log};
 use wb_constraints::{
-    CONSTRAINT_KINDS, float, is_constraint_kind, polygon, register_kinds, shape, text,
+    CONSTRAINT_KINDS, CheckContext, CheckerRegistry, KindCatalog, UnknownTerrain, evaluate, float,
+    is_constraint_kind, polygon, register_kinds, shape, text,
 };
 use wb_editlog::{ActorId, AuthorId, EditError, EditLog, FixedClock, Value};
 use wb_grid::LatLon;
-use wb_world::Geometry;
+use wb_world::{Geometry, Planet};
 
 fn log() -> EditLog {
     let mut log = EditLog::new(ActorId([1; 16]), AuthorId([9; 16]), Box::new(FixedClock(0)));
@@ -121,4 +125,74 @@ fn validators_reject_bad_shapes_and_enums() {
             ("role", Value::Float(5.0)),
         ],
     );
+}
+
+#[test]
+fn starter_catalog_matches_the_const_array() {
+    let c = KindCatalog::with_starter_kinds();
+    assert_eq!(c.len(), CONSTRAINT_KINDS.len());
+    for &k in CONSTRAINT_KINDS {
+        assert!(c.contains(k), "{k} missing from the starter catalog");
+    }
+    assert!(!c.contains("astro.body"));
+    // Sorted, so iteration order is part of the contract.
+    let listed: Vec<&str> = c.kinds().collect();
+    let mut sorted = listed.clone();
+    sorted.sort_unstable();
+    assert_eq!(listed, sorted);
+}
+
+#[test]
+fn registering_is_idempotent_and_additive() {
+    let mut c = KindCatalog::new();
+    assert!(c.is_empty());
+    c.register("astro.body");
+    c.register("astro.body");
+    assert_eq!(c.len(), 1);
+    assert!(c.contains("astro.body"));
+    assert!(!c.contains("feature.river"));
+}
+
+#[test]
+fn evaluate_judges_a_registered_kind_and_ignores_an_unregistered_one() {
+    let mut log = new_log();
+    // `rule.region` is a starter kind; `demo.thing` is not a kind anyone registered.
+    add(
+        &mut log,
+        "rule.region",
+        vec![
+            ("area", band(10.0, 20.0, -20.0, -10.0)),
+            ("rule", Value::from("no_rain")),
+        ],
+    );
+    add(&mut log, "demo.thing", vec![("name", Value::from("x"))]);
+
+    let reg = CheckerRegistry::with_starter_checks();
+    let starter = KindCatalog::with_starter_kinds();
+    let ctx = CheckContext::with_catalog(log.state(), Planet::default(), &UnknownTerrain, &starter);
+    let report = evaluate(&ctx, &reg);
+    assert_eq!(report.verdicts.len(), 1);
+    assert_eq!(report.verdicts[0].kind, "rule.region");
+
+    let mut wide = KindCatalog::with_starter_kinds();
+    wide.register("demo.thing");
+    let ctx = CheckContext::with_catalog(log.state(), Planet::default(), &UnknownTerrain, &wide);
+    let report = evaluate(&ctx, &reg);
+    assert_eq!(report.verdicts.len(), 2);
+    // No checker claims `demo.thing`, so it grades clean rather than erroring.
+    let v = report
+        .verdicts
+        .iter()
+        .find(|v| v.kind == "demo.thing")
+        .expect("demo.thing was registered, so it gets a verdict");
+    assert!(v.issues.is_empty());
+    assert_eq!(v.score, 1.0);
+}
+
+#[test]
+fn new_context_uses_the_starter_catalog() {
+    let log = new_log();
+    let ctx = CheckContext::new(log.state(), Planet::default(), &UnknownTerrain);
+    assert!(ctx.catalog.contains("feature.river"));
+    assert!(!ctx.catalog.contains("astro.body"));
 }

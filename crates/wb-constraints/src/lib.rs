@@ -21,8 +21,8 @@ pub use evaluate::{evaluate, realism_of};
 pub use geo::{bbox, bbox_contains, centroid, contains, midpoint, samples};
 pub use grade::{effective_realism, grade, make_verdict};
 pub use kinds::{
-    CONSTRAINT_KINDS, entity, float, is_constraint_kind, line, point, polygon, register_kinds,
-    shape, text,
+    CONSTRAINT_KINDS, KindCatalog, entity, float, is_constraint_kind, line, point, polygon,
+    register_kinds, shape, text,
 };
 pub use model::{
     Counts, Finding, FindingKind, Grade, IssueCode, Param, Preset, Report, Status, Suggestion,

@@ -1,6 +1,6 @@
 use crate::checker::{CheckContext, CheckerRegistry};
 use crate::grade::{effective_realism, make_verdict};
-use crate::kinds::{float, is_constraint_kind};
+use crate::kinds::float;
 use crate::model::{Finding, FindingKind, Preset, Report};
 use std::collections::BTreeSet;
 use wb_editlog::{EntityId, State, Value};
@@ -25,7 +25,9 @@ fn sort_key(f: &Finding) -> (String, String, Vec<u8>) {
 ///
 /// Live constraints are visited in `EntityId` order and matching checkers run in
 /// checker-id order; findings are then sorted by `(checker, code, params)`, so the
-/// resulting [`Report`] — and its hash — is fully determined by the state.
+/// resulting [`Report`] — and its hash — is fully determined by the state. A live entity
+/// is visited only when its kind is in `ctx.catalog`; everything else is silently
+/// ignored, as before.
 ///
 /// # Badness normalization
 ///
@@ -45,7 +47,7 @@ pub fn evaluate(ctx: &CheckContext<'_>, registry: &CheckerRegistry) -> Report {
     let mut verdicts = Vec::new();
     for view in ctx.state.live() {
         let Some(kind) = view.kind() else { continue };
-        if !is_constraint_kind(kind) {
+        if !ctx.catalog.contains(kind) {
             continue;
         }
         let mut findings: Vec<Finding> = registry
