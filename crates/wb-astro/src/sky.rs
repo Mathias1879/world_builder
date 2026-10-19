@@ -7,6 +7,7 @@ use crate::system::{BodyView, HomeSettings, resolve};
 use crate::units::{BodyClass, G, SOLAR_CONSTANT_W, SOLAR_MAGNITUDE};
 use std::collections::BTreeMap;
 use std::f64::consts::PI;
+use wb_constraints::Suggestion;
 use wb_editlog::{EntityId, State};
 use wb_grid::{LatLon, Vec3};
 
@@ -371,5 +372,11 @@ impl SkyModel {
             0
         };
         self.calendar.season_of_day(doy)
+    }
+
+    /// Suggestions that create `n` seasons tiling the year at the sunlight curve's
+    /// turning points (spec §4.5).
+    pub fn propose_seasons(&self, n: usize) -> Vec<Suggestion> {
+        crate::seasons::propose(self, n)
     }
 }

@@ -5,6 +5,7 @@ mod calendar;
 mod error;
 mod kepler;
 mod kinds;
+mod seasons;
 mod sky;
 mod system;
 mod units;
@@ -16,6 +17,7 @@ pub use kepler::{
     period_s, radius_m, semi_major_m, true_anomaly, wrap_angle,
 };
 pub use kinds::{ASTRO_KINDS, boolean, int, number, register_catalog, register_kinds, words};
+pub use seasons::{PROPOSAL_LAT_DEG, season_cuts};
 pub use sky::{SkyModel, daily_mean_factor, hour_angle, tidal_amplitude_m};
 pub use system::{BodyView, DEFAULT_DAY_HOURS, DEFAULT_TILT_DEG, DEFAULT_YEAR_DAYS, HomeSettings};
 pub use units::{
