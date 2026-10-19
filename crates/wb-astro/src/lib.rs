@@ -16,7 +16,7 @@ pub use kepler::{
     period_s, radius_m, semi_major_m, true_anomaly, wrap_angle,
 };
 pub use kinds::{ASTRO_KINDS, boolean, int, number, register_catalog, register_kinds, words};
-pub use sky::SkyModel;
+pub use sky::{SkyModel, daily_mean_factor, hour_angle};
 pub use system::{BodyView, DEFAULT_DAY_HOURS, DEFAULT_TILT_DEG, DEFAULT_YEAR_DAYS, HomeSettings};
 pub use units::{
     AU_M, BodyClass, ClassDefaults, EARTH_GRAVITY_MS2, EARTH_RADIUS_KM, G, MIN_STELLAR_MASS_SOLAR,

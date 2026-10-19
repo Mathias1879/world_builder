@@ -2,12 +2,13 @@
 
 use crate::calendar::CalendarModel;
 use crate::error::AstroError;
-use crate::kepler::{mean_anomaly, orbit_position};
+use crate::kepler::{ecliptic_longitude, mean_anomaly, orbit_position};
 use crate::system::{BodyView, HomeSettings, resolve};
 use crate::units::BodyClass;
 use std::collections::BTreeMap;
+use std::f64::consts::PI;
 use wb_editlog::{EntityId, State};
-use wb_grid::Vec3;
+use wb_grid::{LatLon, Vec3};
 
 /// A world's whole sky, derived from its entities and never stored.
 pub struct SkyModel {
@@ -19,6 +20,30 @@ pub struct SkyModel {
     moons_of_home: Vec<usize>,
     settings: HomeSettings,
     calendar: CalendarModel,
+}
+
+/// Half the arc of daylight, in radians: `acos(−tan φ · tan δ)`.
+///
+/// Clamping the cosine is what makes polar day (π) and polar night (0) fall out of the
+/// same expression instead of needing their own branches.
+pub fn hour_angle(lat_rad: f64, declination_rad: f64) -> f64 {
+    if !lat_rad.is_finite() || !declination_rad.is_finite() {
+        return 0.0;
+    }
+    let c = -libm::tan(lat_rad) * libm::tan(declination_rad);
+    libm::acos(c.clamp(-1.0, 1.0))
+}
+
+/// Daily-mean insolation as a fraction of the flux at the sub-stellar point.
+///
+/// `(1/π)·(H₀·sin φ·sin δ + cos φ·cos δ·sin H₀)` — the standard obliquity geometry,
+/// integrated over one rotation.
+pub fn daily_mean_factor(lat_rad: f64, declination_rad: f64) -> f64 {
+    let h = hour_angle(lat_rad, declination_rad);
+    let k = (h * libm::sin(lat_rad) * libm::sin(declination_rad)
+        + libm::cos(lat_rad) * libm::cos(declination_rad) * libm::sin(h))
+        / PI;
+    if k.is_finite() { k.max(0.0) } else { 0.0 }
 }
 
 impl SkyModel {
@@ -142,5 +167,58 @@ impl SkyModel {
             there.y - here.y,
             there.z - here.z,
         ))
+    }
+
+    /// Declination of the sub-stellar point, radians, for a direction from the home world
+    /// to a star.
+    ///
+    /// `δ = asin(sin ε · sin λ)`, where λ is the star's ecliptic longitude as seen from
+    /// the home world. Using the star's own direction rather than the home world's orbital
+    /// phase is what makes a second sun's seasons fall out of its orbit.
+    pub fn declination(&self, to_star: Vec3) -> f64 {
+        let lon = ecliptic_longitude(to_star);
+        let s = libm::sin(self.settings.axial_tilt_rad) * libm::sin(lon);
+        libm::asin(s.clamp(-1.0, 1.0))
+    }
+
+    /// Daily-mean flux at the top of the atmosphere, W·m⁻², summed over every star.
+    ///
+    /// Stars are summed in `EntityId` order, so the result does not depend on how the
+    /// system was assembled. `lat.lon` is ignored: a daily mean is the same all the way
+    /// round a parallel.
+    pub fn insolation(&self, lat: LatLon, day: f64) -> f64 {
+        let mut total = 0.0;
+        for i in &self.stars {
+            let star = &self.bodies[*i];
+            let Some(luminosity) = star.luminosity_w else {
+                continue;
+            };
+            let Some(to_star) = self.position(star.id, day) else {
+                continue;
+            };
+            let distance = to_star.length();
+            if distance <= 0.0 || !distance.is_finite() || !luminosity.is_finite() {
+                continue;
+            }
+            let flux = luminosity / (4.0 * PI * distance * distance);
+            let k = daily_mean_factor(lat.lat, self.declination(to_star));
+            let contribution = flux * k;
+            if contribution.is_finite() {
+                total += contribution;
+            }
+        }
+        total
+    }
+
+    /// Hours of daylight from the primary star, in local hours.
+    ///
+    /// A companion adds light but not a day: the clock follows the primary (spec §4.2).
+    pub fn daylight_hours(&self, lat: LatLon, day: f64) -> f64 {
+        let primary = self.primary_star();
+        let Some(to_star) = self.position(primary.id, day) else {
+            return 0.0;
+        };
+        let h = hour_angle(lat.lat, self.declination(to_star));
+        self.settings.day_hours * h / PI
     }
 }
