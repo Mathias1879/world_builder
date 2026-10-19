@@ -73,8 +73,12 @@ The home world is the **existing planet entity** (`EntityId::PLANET`), not a sep
 | `axial_tilt_deg` | Float 0–90 | Obliquity |
 | `eccentricity` | Float 0–0.95 | Default 0 |
 | `retrograde` | Bool | Spin direction; default false |
+| `radius_km` | Float > 0 | Planet radius; default 6371 (Earth) |
+| `gravity_ms2` | Float > 0 | Surface gravity; default 9.80665 (Earth) |
 
-Its radius and gravity already live on `wb_world::Planet`; mass follows as `M = g·R²/G`.
+`wb_world::Planet` carries a radius for the grid, but the home world's *physical* radius
+and gravity are world data, so they live on the planet entity like every other editable
+value, with Earth's figures as defaults. Mass follows as `M = g·R²/G`.
 
 ### 3.4 Moons
 

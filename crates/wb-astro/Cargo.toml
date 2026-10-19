@@ -1,0 +1,21 @@
+[package]
+name = "wb-astro"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+wb-grid = { workspace = true, features = ["serde"] }
+wb-world = { workspace = true, features = ["serde"] }
+wb-editlog.workspace = true
+wb-constraints.workspace = true
+libm.workspace = true
+
+[dev-dependencies]
+blake3.workspace = true
+proptest.workspace = true
+
+[lints]
+workspace = true
