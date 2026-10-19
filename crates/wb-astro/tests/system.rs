@@ -410,3 +410,58 @@ fn an_absurd_distance_does_not_become_infinity() {
         "{p:?}"
     );
 }
+
+#[test]
+fn absurd_masses_and_radii_do_not_become_infinity() {
+    let mut log = new_log();
+    add(
+        &mut log,
+        "astro.star",
+        vec![
+            ("name", t("Monstrous")),
+            ("role", t("primary")),
+            ("mass_solar", f(1e300)),
+        ],
+    );
+    add(
+        &mut log,
+        "astro.body",
+        vec![
+            ("name", t("Bloated")),
+            ("order", i(1)),
+            ("class", t("rocky")),
+            ("distance_au", f(1.0)),
+            ("radius_km", f(1e100)),
+        ],
+    );
+    add_aethorian_calendar(&mut log);
+    let sky = SkyModel::build(log.state()).unwrap();
+    for b in sky.bodies() {
+        assert!(b.mass_kg.is_finite(), "{} mass_kg = {}", b.name, b.mass_kg);
+        assert!(
+            b.radius_m.is_finite(),
+            "{} radius_m = {}",
+            b.name,
+            b.radius_m
+        );
+        assert!(b.a_m.is_finite(), "{} a_m = {}", b.name, b.a_m);
+        assert!(
+            b.period_s.is_finite(),
+            "{} period_s = {}",
+            b.name,
+            b.period_s
+        );
+        assert!(
+            b.luminosity_w.map(f64::is_finite).unwrap_or(true),
+            "{} luminosity_w = {:?}",
+            b.name,
+            b.luminosity_w
+        );
+        let p = sky.position(b.id, 7.0).expect("a position");
+        assert!(
+            p.x.is_finite() && p.y.is_finite() && p.z.is_finite(),
+            "{} {p:?}",
+            b.name
+        );
+    }
+}

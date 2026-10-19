@@ -98,7 +98,10 @@ impl HomeSettings {
                 .as_ref()
                 .and_then(|p| boolean(p, "retrograde"))
                 .unwrap_or(false),
-            radius_m: positive("radius_km", crate::units::EARTH_RADIUS_KM) * 1_000.0,
+            radius_m: finite_or(
+                positive("radius_km", crate::units::EARTH_RADIUS_KM) * 1_000.0,
+                crate::units::EARTH_RADIUS_KM * 1_000.0,
+            ),
             gravity_ms2: positive("gravity_ms2", crate::units::EARTH_GRAVITY_MS2),
             order: planet
                 .as_ref()
@@ -159,6 +162,13 @@ fn read_scaled(e: &EntityView<'_>, field: &str, scale: f64) -> Option<f64> {
         .filter(|x| x.is_finite() && *x > 0.0)
 }
 
+/// `x` if finite, otherwise `fallback` — the last line of defence against a value that
+/// is finite before conversion but overflows after it, or after a later multiplication
+/// (mass from density cubes the radius, for instance).
+fn finite_or(x: f64, fallback: f64) -> f64 {
+    if x.is_finite() { x } else { fallback }
+}
+
 fn read_body(e: &EntityView<'_>, home: &HomeSettings) -> Option<Raw> {
     let class = BodyClass::parse(match e.get("class") {
         Some(wb_editlog::Value::Text(s)) => s.as_str(),
@@ -207,7 +217,7 @@ fn read_body(e: &EntityView<'_>, home: &HomeSettings) -> Option<Raw> {
         stated_period_s,
         eccentricity: clamped(number(e, "eccentricity"), 0.0, 0.95, 0.0),
         inclination_rad: clamped(number(e, "inclination_deg"), -90.0, 90.0, 0.0).to_radians(),
-        radius_m: read_positive(e, "radius_km").map(|km| km * 1_000.0),
+        radius_m: read_scaled(e, "radius_km", 1_000.0),
         density_kgm3: read_positive(e, "density_kgm3"),
         albedo: number(e, "albedo")
             .filter(|a| a.is_finite())
@@ -247,7 +257,7 @@ fn read_star(e: &EntityView<'_>, home: &HomeSettings) -> Option<Raw> {
         stated_period_s: read_scaled(e, "period_years", home.year_s()),
         eccentricity: clamped(number(e, "eccentricity"), 0.0, 0.95, 0.0),
         inclination_rad: clamped(number(e, "inclination_deg"), -90.0, 90.0, 0.0).to_radians(),
-        radius_m: read_positive(e, "radius_km").map(|km| km * 1_000.0),
+        radius_m: read_scaled(e, "radius_km", 1_000.0),
         density_kgm3: read_positive(e, "density_kgm3"),
         albedo: Some(0.0),
         rings: false,
@@ -363,7 +373,10 @@ pub fn resolve(
     for id in order {
         let r = &raws[&id];
         let defaults = r.class.defaults();
-        let radius_m = r.radius_m.unwrap_or(defaults.radius_km * 1_000.0);
+        let radius_m = finite_or(
+            r.radius_m.unwrap_or(defaults.radius_km * 1_000.0),
+            defaults.radius_km * 1_000.0,
+        );
         let density_kgm3 = r.density_kgm3.unwrap_or(defaults.density_kgm3);
         let (mass_kg, luminosity_w) = match r.class {
             BodyClass::Star => {
@@ -371,13 +384,22 @@ pub fn resolve(
                 let l = r
                     .luminosity_solar
                     .unwrap_or_else(|| luminosity_from_mass_solar(m));
-                (m * SOLAR_MASS_KG, Some(l * SOLAR_LUMINOSITY_W))
+                (
+                    finite_or(m * SOLAR_MASS_KG, 0.0),
+                    Some(finite_or(l * SOLAR_LUMINOSITY_W, 0.0)),
+                )
             }
-            BodyClass::Home => (mass_from_gravity(home.gravity_ms2, radius_m), None),
+            BodyClass::Home => (
+                finite_or(mass_from_gravity(home.gravity_ms2, radius_m), 0.0),
+                None,
+            ),
             // A belt's mass is spread over its whole annulus; nothing orbits it and it
             // perturbs nothing in a two-body model.
             BodyClass::Belt => (0.0, None),
-            _ => (mass_from_density(radius_m, density_kgm3), None),
+            _ => (
+                finite_or(mass_from_density(radius_m, density_kgm3), 0.0),
+                None,
+            ),
         };
         let parent_mass = r
             .parent
