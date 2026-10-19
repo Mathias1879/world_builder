@@ -17,6 +17,9 @@ pub const EARTH_GRAVITY_MS2: f64 = 9.806_65;
 pub const EARTH_RADIUS_KM: f64 = 6_371.0;
 /// Flux reference for `apparent_brightness`: Earth's solar constant, W·m⁻².
 pub const SOLAR_CONSTANT_W: f64 = 1_361.0;
+/// The Sun's apparent magnitude seen from Earth — the zero point that makes
+/// [`crate::SkyModel::apparent_brightness`] comparable to the real sky.
+pub const SOLAR_MAGNITUDE: f64 = -26.74;
 /// Below this mass an object cannot fuse hydrogen, so it is not a star.
 pub const MIN_STELLAR_MASS_SOLAR: f64 = 0.08;
 
