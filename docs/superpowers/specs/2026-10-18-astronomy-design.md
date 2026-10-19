@@ -113,7 +113,15 @@ Distances, masses, positions, brightness, sunlight and tides are recomputed from
 - `CheckContext` carries `catalog: &KindCatalog`; `evaluate` uses it instead of the `is_constraint_kind` free function, which remains as a thin wrapper over the starter catalog for existing callers.
 - `wb-astro::register(&mut EditLog, &mut CheckerRegistry, &mut KindCatalog)` adds its kinds, validators and checkers.
 
-This is additive: existing behaviour, tests and the Constraints golden hash are unchanged.
+This is additive: existing behaviour and tests are unchanged, as is the Constraints
+golden hash.
+
+`propose_seasons` (§4.5) needs one further additive change: `Suggestion` gains
+`creates: Vec<NewEntity>`, because a suggestion that adds a season has to create an
+entity and v1 suggestions could only write fields on existing ones. `apply_suggestion`
+creates them before applying writes, in the same transaction. This does change
+`Suggestion`'s postcard encoding, so the Constraints golden hash is updated in the same
+commit — a deliberate update, which is what that golden exists to force.
 
 ## 4. Computation
 

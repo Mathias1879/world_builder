@@ -1,10 +1,10 @@
 mod common;
 
-use common::{add, new_log, poly};
+use common::{add, band, new_log, poly};
 use std::collections::BTreeMap;
 use wb_constraints::{
-    ConstraintError, IssueCode, Param, Preset, Suggestion, apply_suggestion, keep_anyway,
-    realism_of, set_realism, unkeep,
+    ConstraintError, IssueCode, NewEntity, Param, Preset, Suggestion, apply_suggestion,
+    keep_anyway, realism_of, set_realism, unkeep,
 };
 use wb_editlog::{EditError, EntityId, Value};
 
@@ -32,6 +32,7 @@ fn suggestions_apply_as_undoable_transactions() {
         .into_iter()
         .collect(),
         writes: vec![(d, "name".to_string(), Value::from("Great Sand Sea"))],
+        creates: Vec::new(),
     };
     let op = apply_suggestion(&mut log, &s).unwrap();
     assert_eq!(
@@ -56,6 +57,7 @@ fn suggestions_apply_as_undoable_transactions() {
         code: IssueCode::new("x"),
         params: BTreeMap::new(),
         writes: vec![(ghost, "name".into(), Value::from("x"))],
+        creates: Vec::new(),
     };
     let before = log.source_hash();
     assert_eq!(
@@ -130,6 +132,7 @@ fn actions_refuse_deleted_entities() {
         code: IssueCode::new("x"),
         params: BTreeMap::new(),
         writes: vec![(d, "name".into(), Value::from("Ghost Sea"))],
+        creates: Vec::new(),
     };
     let before = log.source_hash();
     assert_eq!(
@@ -195,4 +198,90 @@ fn realism_setting() {
     ));
     log.undo().unwrap();
     assert_eq!(realism_of(log.state()), 0.85);
+}
+
+#[test]
+fn applying_a_suggestion_creates_entities() {
+    let mut log = new_log();
+    let before = log.state().len();
+    let s = Suggestion {
+        code: IssueCode::new("demo.add_two"),
+        params: BTreeMap::new(),
+        writes: Vec::new(),
+        creates: vec![
+            NewEntity {
+                kind: "civ.settlement".to_string(),
+                fields: vec![
+                    ("at".to_string(), Value::LatLon(common::d(10.0, 20.0))),
+                    ("name".to_string(), Value::from("Kaldros")),
+                ],
+            },
+            NewEntity {
+                kind: "civ.settlement".to_string(),
+                fields: vec![
+                    ("at".to_string(), Value::LatLon(common::d(12.0, 22.0))),
+                    ("name".to_string(), Value::from("Thanewick")),
+                ],
+            },
+        ],
+    };
+    apply_suggestion(&mut log, &s).unwrap();
+
+    assert_eq!(log.state().len(), before + 2);
+    let names: Vec<&str> = log
+        .state()
+        .live()
+        .filter(|v| v.kind() == Some("civ.settlement"))
+        .filter_map(|v| match v.get("name") {
+            Some(Value::Text(t)) => Some(t.as_str()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(names, vec!["Kaldros", "Thanewick"]);
+}
+
+#[test]
+fn creating_an_invalid_entity_commits_nothing() {
+    let mut log = new_log();
+    let before = log.state().len();
+    // `civ.settlement` requires `at` and `name`; this one has neither.
+    let s = Suggestion {
+        code: IssueCode::new("demo.bad"),
+        params: BTreeMap::new(),
+        writes: Vec::new(),
+        creates: vec![NewEntity {
+            kind: "civ.settlement".to_string(),
+            fields: vec![("role".to_string(), Value::from("capital"))],
+        }],
+    };
+    assert!(apply_suggestion(&mut log, &s).is_err());
+    assert_eq!(log.state().len(), before);
+}
+
+#[test]
+fn a_suggestion_can_create_and_write_in_one_transaction() {
+    let mut log = new_log();
+    let lake = add(
+        &mut log,
+        "feature.lake",
+        vec![("area", band(10.0, 12.0, -12.0, -10.0))],
+    );
+    let s = Suggestion {
+        code: IssueCode::new("demo.both"),
+        params: BTreeMap::new(),
+        writes: vec![(lake, "name".to_string(), Value::from("Mirrormere"))],
+        creates: vec![NewEntity {
+            kind: "civ.settlement".to_string(),
+            fields: vec![
+                ("at".to_string(), Value::LatLon(common::d(11.0, -11.0))),
+                ("name".to_string(), Value::from("Shorehold")),
+            ],
+        }],
+    };
+    let op = apply_suggestion(&mut log, &s).unwrap();
+    assert_eq!(
+        log.state().field(lake, "name"),
+        Some(&Value::from("Mirrormere"))
+    );
+    assert_eq!(log.op(op).map(|o| o.writes.len()), Some(4));
 }

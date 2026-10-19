@@ -25,7 +25,7 @@ pub use kinds::{
     register_kinds, shape, text,
 };
 pub use model::{
-    Counts, Finding, FindingKind, Grade, IssueCode, Param, Preset, Report, Status, Suggestion,
-    Verdict,
+    Counts, Finding, FindingKind, Grade, IssueCode, NewEntity, Param, Preset, Report, Status,
+    Suggestion, Verdict,
 };
 pub use templates::{render, render_suggestion};

@@ -1,5 +1,8 @@
 //! Cross-target determinism gate for verdict reports. Update GOLDEN_REPORT in the same
 //! commit as any intentional change to checkers, grading, or encoding.
+//!
+//! Last changed 2026-10-18: `Suggestion` gained `creates`, which changes the postcard
+//! encoding of every verdict carrying a suggestion.
 
 mod common;
 
@@ -8,7 +11,7 @@ use wb_constraints::{CheckContext, CheckerRegistry, IssueCode, evaluate, keep_an
 use wb_editlog::Value;
 use wb_world::{Planet, to_hex};
 
-const GOLDEN_REPORT: &str = "1bac7e1475e760d90bc40f16c1e444984de57f4e8234c65a58b28c8094f721ae";
+const GOLDEN_REPORT: &str = "8100c7e38022443850cc25f5e6d93871a16ab85ad0a08d2d52b1b9e38ad48c2b";
 
 #[test]
 fn golden_report() {

@@ -57,6 +57,7 @@ impl Checker for LoreAreaCheck {
             .into_iter()
             .collect(),
             writes: vec![(c.id, "value".to_string(), Value::Float(drawn))],
+            creates: Vec::new(),
         };
         vec![
             Finding::issue(

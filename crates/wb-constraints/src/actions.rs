@@ -5,11 +5,14 @@ use crate::templates::render_suggestion;
 use std::collections::BTreeSet;
 use wb_editlog::{EditLog, EntityId, OpId, Transaction, Value, clip_label};
 
-/// Commits a suggestion's writes as one transaction.
+/// Commits a suggestion's creations and writes as one transaction.
 ///
-/// Fails with [`ConstraintError::UnknownEntity`] — writing nothing — if any target
-/// entity is missing. Deletion in the Edit Log is a tombstone, so a deleted entity is
-/// still reachable through `State::entity`; it counts as missing here.
+/// Fails with [`ConstraintError::UnknownEntity`] — writing nothing — if any write's
+/// target entity is missing. Deletion in the Edit Log is a tombstone, so a deleted
+/// entity is still reachable through `State::entity`; it counts as missing here.
+///
+/// Creations happen before writes, in one transaction: a validator rejecting any part
+/// of it leaves the log untouched.
 pub fn apply_suggestion(log: &mut EditLog, s: &Suggestion) -> Result<OpId, ConstraintError> {
     if let Some((e, _, _)) = s
         .writes
@@ -20,6 +23,14 @@ pub fn apply_suggestion(log: &mut EditLog, s: &Suggestion) -> Result<OpId, Const
     }
     let label = clip_label(format!("Suggestion: {}", render_suggestion(s)));
     let mut tx = log.transact(&label);
+    for n in &s.creates {
+        let fields: Vec<(&str, Value)> = n
+            .fields
+            .iter()
+            .map(|(f, v)| (f.as_str(), v.clone()))
+            .collect();
+        tx.create(&n.kind, fields);
+    }
     for (e, field, value) in &s.writes {
         tx.set(*e, field, value.clone());
     }

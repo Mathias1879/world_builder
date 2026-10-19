@@ -38,12 +38,24 @@ pub enum Param {
     Entity(EntityId),
 }
 
-/// A one-click fix: field writes committed as one Edit Log transaction.
+/// An entity a suggestion creates when applied.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct NewEntity {
+    pub kind: String,
+    /// Field writes for the new entity, applied in the order given.
+    pub fields: Vec<(String, Value)>,
+}
+
+/// A one-click fix: entity creations and field writes committed as one Edit Log
+/// transaction.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Suggestion {
     pub code: IssueCode,
     pub params: BTreeMap<String, Param>,
     pub writes: Vec<(EntityId, String, Value)>,
+    /// Entities to create. Created before `writes` are applied; a write cannot refer to
+    /// one of them, because a suggestion's author cannot know their ids.
+    pub creates: Vec<NewEntity>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
