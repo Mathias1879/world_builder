@@ -328,6 +328,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "wb-astro"
+version = "0.1.0"
+dependencies = [
+ "blake3",
+ "libm",
+ "proptest",
+ "wb-constraints",
+ "wb-editlog",
+ "wb-grid",
+ "wb-world",
+]
+
+[[package]]
 name = "wb-constraints"
 version = "0.1.0"
 dependencies = [

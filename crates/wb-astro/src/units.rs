@@ -69,11 +69,6 @@ impl BodyClass {
         }
     }
 
-    /// Whether this class has a solid surface a moon could orbit meaningfully.
-    pub fn is_belt(self) -> bool {
-        self == BodyClass::Belt
-    }
-
     pub fn defaults(self) -> ClassDefaults {
         let (radius_km, density_kgm3, albedo) = match self {
             BodyClass::Rocky => (5_000.0, 5_000.0, 0.15),
