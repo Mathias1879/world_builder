@@ -23,6 +23,70 @@ fn template(code: &str) -> Option<&'static str> {
             "Tropical forest at {lat}° latitude is unlikely."
         }
         "climate.boreal_forest_low_latitude" => "Boreal forest at {lat}° latitude is unlikely.",
+
+        // wb-astro: issue codes (spec §6). A per-subsystem template registry is the
+        // properly layered home for these (recorded as a follow-up); for now they live
+        // here, which is better than no explanation at all.
+        "astro.companion_destabilizes" => {
+            "A companion star at {distance_au} AU reaches past {critical_au} AU, destabilizing {count} other bodies ({bodies})."
+        }
+        "astro.companion_period_mismatch" => {
+            "A stated period of {stated_period_years} years and an implied distance of {implied_distance_au} AU disagree with each other."
+        }
+        "astro.order_mismatch" => {
+            "States order {stated}, but sits {places} places out of the distance sequence."
+        }
+        "astro.orbit_crossing" => {
+            "Its orbit ({perihelion_au}–{aphelion_au} AU) crosses {other}'s ({other_perihelion_au}–{other_aphelion_au} AU)."
+        }
+        "astro.resonance_protects" => {
+            "Crosses {other}'s orbit, but a {p}:{q} resonance with it keeps them apart."
+        }
+        "astro.resonance" => "In a {p}:{q} resonance with {other}.",
+        "astro.moon_outside_hill" => {
+            "Orbits at {distance_km} km, past a third of its planet's Hill radius ({hill_third_km} km)."
+        }
+        "astro.moon_inside_roche" => {
+            "Orbits at {distance_km} km, inside the Roche limit ({roche_km} km) for its density."
+        }
+        "astro.belt_overlaps_orbit" => {
+            "Spans {inner_au}–{outer_au} AU, which contains {other}'s orbit."
+        }
+        "astro.outside_habitable_zone" => {
+            "An equilibrium temperature of {temperature_k} K ({flux_wm2} W/m² at albedo {albedo}) is outside the habitable band."
+        }
+        "astro.calendar_sum_mismatch" => {
+            "Months sum to {month_total} days against a {year_days}-day year — off by {difference_days} days."
+        }
+        "astro.leap_drift" => {
+            "The leap rule averages {mean_year_days} days a year against a {year_days}-day year, drifting {drift_days} days a year."
+        }
+        // No placeholder here on purpose: the moon branch and the year/AU branch name
+        // this disagreement under different keys (days/km vs. years/AU — Fix 6), so a
+        // template that named either would render literally on the other.
+        "astro.period_distance_conflict" => {
+            "States a period and a distance that are inconsistent with each other by more than 5%."
+        }
+        "astro.tidal_locking" => {
+            "{perturber} would tidally lock this world's day in about {years} years."
+        }
+        "astro.month_index_duplicated" => {
+            "Month index {index} is shared by {months} — dates on it won't round-trip correctly."
+        }
+
+        // wb-astro: suggestion codes.
+        "astro.move_companion_out" => "move the companion out to {distance_au} AU",
+        "astro.demote_companion" => {
+            "reduce the companion's mass to {mass_solar} solar masses, below the stellar limit"
+        }
+        "astro.renumber" => "renumber it to {order}",
+        "astro.keep_distance" => "keep the stated distance and drop the stated period",
+        "astro.keep_period" => "keep the stated period and drop the stated distance",
+        "astro.retune_year" => {
+            "retune the year to {year_days} days ({distance_au} AU), accounting for the {basis}"
+        }
+        "astro.adjust_longest_month" => "adjust {month} to {days} days",
+        "astro.add_season" => "add a season named {name} from day {start} to day {end}",
         _ => return None,
     })
 }

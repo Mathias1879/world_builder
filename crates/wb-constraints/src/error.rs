@@ -5,6 +5,11 @@ use wb_editlog::{EditError, EntityId};
 pub enum ConstraintError {
     DuplicateChecker(String),
     UnknownEntity(EntityId),
+    /// The entity has no kind at all. Before `KindCatalog`, this meant "not one of the
+    /// fixed `CONSTRAINT_KINDS`"; now that the gate is a registry a subsystem can extend,
+    /// a kind outside the catalog is simply not visited by `evaluate` — it is never
+    /// rejected here. This variant fires only for the one case a catalog cannot help
+    /// with: an entity with no kind whatsoever.
     NotAConstraint(EntityId),
     Edit(EditError),
 }

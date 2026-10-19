@@ -26,6 +26,25 @@ pub const ASTRO_KINDS: &[&str] = &[
 /// The longest week a calendar may name.
 const MAX_WEEKDAYS: usize = 100;
 
+/// Upper bounds on numeric fields, at the validator boundary.
+///
+/// None of these express a physical limit — every real astronomical object sits far
+/// inside them. They exist so that derived arithmetic downstream (squaring a distance,
+/// cubing a radius, Kepler's third law) stays inside `f64`'s range instead of overflowing
+/// to infinity or panicking, which is cheaper and more honest to fix here, at the one
+/// place all of this data is validated, than inside every computation that uses it.
+const MAX_MONTH_DAYS: i64 = 100_000;
+const MAX_LEAP_EVERY_N: i64 = 10_000;
+const MAX_YEAR_DAYS: f64 = 1e6;
+const MAX_DAY_HOURS: f64 = 1e6;
+const MAX_PERIOD_YEARS: f64 = 1e9;
+const MAX_PERIOD_DAYS: f64 = 1e9;
+const MAX_DISTANCE_AU: f64 = 1e9;
+const MAX_DISTANCE_KM: f64 = 1e12;
+const MAX_RADIUS_KM: f64 = 1e12;
+const MAX_DENSITY_KGM3: f64 = 1e6;
+const MAX_MASS_SOLAR: f64 = 1e6;
+
 pub fn int(e: &EntityView<'_>, field: &str) -> Option<i64> {
     match e.get(field) {
         Some(Value::Int(n)) => Some(*n),
@@ -131,6 +150,25 @@ fn positive(e: &EntityView<'_>, field: &str) -> Result<(), String> {
     }
 }
 
+/// A number field, optional, strictly positive, finite and no greater than `max` when
+/// present. See the `MAX_*` constants above for why the ceiling exists.
+fn bounded_positive(e: &EntityView<'_>, field: &str, max: f64) -> Result<(), String> {
+    match e.get(field) {
+        None => Ok(()),
+        Some(Value::Float(_) | Value::Int(_)) => {
+            let x = number(e, field).unwrap_or(f64::NAN);
+            if x.is_finite() && x > 0.0 && x <= max {
+                Ok(())
+            } else {
+                Err(format!(
+                    "{field} must be a positive number no greater than {max}"
+                ))
+            }
+        }
+        _ => Err(format!("{field} must be a number")),
+    }
+}
+
 /// An integer field, optional, at least `min` when present.
 fn at_least(e: &EntityView<'_>, field: &str, min: i64) -> Result<(), String> {
     match e.get(field) {
@@ -151,10 +189,10 @@ fn require_at_least(e: &EntityView<'_>, field: &str, min: i64) -> Result<(), Str
 
 /// Orbit fields shared by bodies and companion stars.
 fn orbit(e: &EntityView<'_>) -> Result<(), String> {
-    positive(e, "period_years")?;
-    positive(e, "distance_au")?;
-    positive(e, "period_days")?;
-    positive(e, "distance_km")?;
+    bounded_positive(e, "period_years", MAX_PERIOD_YEARS)?;
+    bounded_positive(e, "distance_au", MAX_DISTANCE_AU)?;
+    bounded_positive(e, "period_days", MAX_PERIOD_DAYS)?;
+    bounded_positive(e, "distance_km", MAX_DISTANCE_KM)?;
     range(e, "eccentricity", 0.0, 0.95)?;
     range(e, "inclination_deg", -90.0, 90.0)?;
     at_least(e, "order", 1)?;
@@ -168,14 +206,14 @@ fn validate_body(e: &EntityView<'_>) -> Result<(), String> {
         return Err("class must be one of rocky, water, gas_giant, ice_giant, belt, moon".into());
     };
     orbit(e)?;
-    positive(e, "radius_km")?;
-    positive(e, "density_kgm3")?;
+    bounded_positive(e, "radius_km", MAX_RADIUS_KM)?;
+    bounded_positive(e, "density_kgm3", MAX_DENSITY_KGM3)?;
     range(e, "albedo", 0.0, 1.0)?;
     optional_bool(e, "rings")?;
     match class {
         BodyClass::Belt => {
-            positive(e, "inner_au")?;
-            positive(e, "outer_au")?;
+            bounded_positive(e, "inner_au", MAX_DISTANCE_AU)?;
+            bounded_positive(e, "outer_au", MAX_DISTANCE_AU)?;
             let (inner, outer) = (number(e, "inner_au"), number(e, "outer_au"));
             match (inner, outer) {
                 (Some(_), Some(_)) => Ok(()),
@@ -204,8 +242,12 @@ fn validate_star(e: &EntityView<'_>) -> Result<(), String> {
         _ => return Err("role must be primary or companion".into()),
     }
     match number(e, "mass_solar") {
-        Some(m) if m.is_finite() && m > 0.0 => {}
-        _ => return Err("mass_solar is required and must be a positive number".into()),
+        Some(m) if m.is_finite() && m > 0.0 && m <= MAX_MASS_SOLAR => {}
+        _ => {
+            return Err(format!(
+                "mass_solar is required and must be a positive number no greater than {MAX_MASS_SOLAR}"
+            ));
+        }
     }
     positive(e, "luminosity_solar")?;
     orbit(e)
@@ -224,8 +266,10 @@ fn validate_calendar(e: &EntityView<'_>) -> Result<(), String> {
     match text(e, "leap_rule") {
         None | Some("none") => Ok(()),
         Some("every_n") => match int(e, "leap_every_n") {
-            Some(n) if n >= 2 => optional_entity(e, "leap_month"),
-            _ => Err("leap_rule = every_n needs leap_every_n of at least 2".into()),
+            Some(n) if (2..=MAX_LEAP_EVERY_N).contains(&n) => optional_entity(e, "leap_month"),
+            _ => Err(format!(
+                "leap_rule = every_n needs leap_every_n between 2 and {MAX_LEAP_EVERY_N}"
+            )),
         },
         _ => Err("leap_rule must be none or every_n".into()),
     }
@@ -234,7 +278,14 @@ fn validate_calendar(e: &EntityView<'_>) -> Result<(), String> {
 fn validate_month(e: &EntityView<'_>) -> Result<(), String> {
     require_text(e, "name")?;
     require_at_least(e, "index", 1)?;
-    require_at_least(e, "days", 1)?;
+    match int(e, "days") {
+        Some(n) if (1..=MAX_MONTH_DAYS).contains(&n) => {}
+        _ => {
+            return Err(format!(
+                "days is required and must be a whole number from 1 to {MAX_MONTH_DAYS}"
+            ));
+        }
+    }
     require_entity(e, "calendar")
 }
 
@@ -250,8 +301,8 @@ fn validate_season(e: &EntityView<'_>) -> Result<(), String> {
 /// The home world's astronomy fields (§3.3). Every one is optional, and every field this
 /// subsystem does not own is left alone — other subsystems write to the planet too.
 fn validate_planet(e: &EntityView<'_>) -> Result<(), String> {
-    positive(e, "year_days")?;
-    positive(e, "day_hours")?;
+    bounded_positive(e, "year_days", MAX_YEAR_DAYS)?;
+    bounded_positive(e, "day_hours", MAX_DAY_HOURS)?;
     positive(e, "radius_km")?;
     positive(e, "gravity_ms2")?;
     range(e, "axial_tilt_deg", 0.0, 90.0)?;

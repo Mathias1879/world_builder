@@ -389,6 +389,10 @@ fn an_unstated_planet_gets_earth_like_defaults() {
 
 #[test]
 fn an_absurd_distance_does_not_become_infinity() {
+    // The validator ceiling (kinds.rs) now rejects anything past 1e9 AU outright, which
+    // closes off the overflow this test used to probe for with 1e300. The remaining
+    // question is the boundary itself: does the largest value a user can still enter
+    // stay finite all the way through? That is what this now checks.
     let mut log = earth_system();
     add(
         &mut log,
@@ -397,7 +401,7 @@ fn an_absurd_distance_does_not_become_infinity() {
             ("name", t("Absurd")),
             ("order", i(9)),
             ("class", t("rocky")),
-            ("distance_au", f(1e300)),
+            ("distance_au", f(1e9)),
         ],
     );
     let sky = SkyModel::build(log.state()).unwrap();
@@ -413,6 +417,9 @@ fn an_absurd_distance_does_not_become_infinity() {
 
 #[test]
 fn absurd_masses_and_radii_do_not_become_infinity() {
+    // Same story as the distance test above: the validator ceilings (mass_solar ≤ 1e6,
+    // radius_km ≤ 1e12) now reject 1e300/1e100 outright, so this checks the largest
+    // values still admitted stay finite through the downstream arithmetic.
     let mut log = new_log();
     add(
         &mut log,
@@ -420,7 +427,7 @@ fn absurd_masses_and_radii_do_not_become_infinity() {
         vec![
             ("name", t("Monstrous")),
             ("role", t("primary")),
-            ("mass_solar", f(1e300)),
+            ("mass_solar", f(1e6)),
         ],
     );
     add(
@@ -431,7 +438,7 @@ fn absurd_masses_and_radii_do_not_become_infinity() {
             ("order", i(1)),
             ("class", t("rocky")),
             ("distance_au", f(1.0)),
-            ("radius_km", f(1e100)),
+            ("radius_km", f(1e12)),
         ],
     );
     add_aethorian_calendar(&mut log);

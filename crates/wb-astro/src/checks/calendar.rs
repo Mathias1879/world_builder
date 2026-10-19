@@ -1,7 +1,9 @@
 //! Whether the calendar matches the orbit it is supposed to describe.
 
+use crate::calendar::MonthView;
 use crate::checks::orbital::checker_model;
 use crate::checks::suggestion;
+use std::collections::BTreeMap;
 use wb_constraints::{CheckContext, Checker, ConstraintView, Finding, KindPattern, Param};
 use wb_editlog::Value;
 
@@ -32,6 +34,37 @@ impl Checker for CalendarCheck {
             // model of its own, and the world has one calendar by design.
             return Vec::new();
         }
+        let mut out = Vec::new();
+
+        // Two or more months sharing an `index` is a cross-entity property no
+        // per-entity validator can catch, and it silently corrupts the date round-trip
+        // spec §4.5 promises: `month_position_by_index` takes the first match while
+        // `date_of` emits whichever position the day actually falls in, so the two stop
+        // agreeing for every date that lands on the duplicated month. No suggestion —
+        // which index should move is the user's call, and this branch's principle is
+        // that a fix which cannot be chosen for the user is better left unoffered.
+        let mut by_index: BTreeMap<i64, Vec<&MonthView>> = BTreeMap::new();
+        for m in &cal.months {
+            by_index.entry(m.index).or_default().push(m);
+        }
+        for (index, group) in &by_index {
+            if group.len() < 2 {
+                continue;
+            }
+            let names = group
+                .iter()
+                .map(|m| m.name.as_str())
+                .collect::<Vec<_>>()
+                .join(", ");
+            let mut finding = Finding::issue(self.id(), "astro.month_index_duplicated", 0.9)
+                .with_param("index", Param::Int(*index))
+                .with_param("months", Param::Text(names));
+            for m in group {
+                finding = finding.with_related(m.id);
+            }
+            out.push(finding);
+        }
+
         let months = cal.month_days() as f64;
         // Mean calendar year: the months, plus a leap day every n years.
         let mean = months
@@ -65,16 +98,18 @@ impl Checker for CalendarCheck {
                 }
                 finding = finding.with_related(m.id);
             }
-            return vec![finding];
+            out.push(finding);
+            return out;
         }
         if drift.abs() > DRIFT_TOLERANCE_DAYS {
-            return vec![
+            out.push(
                 Finding::issue(self.id(), "astro.leap_drift", 0.6)
                     .with_param("drift_days", Param::Float(drift.abs()))
                     .with_param("mean_year_days", Param::Float(mean))
                     .with_param("year_days", Param::Float(year_days)),
-            ];
+            );
+            return out;
         }
-        Vec::new()
+        out
     }
 }

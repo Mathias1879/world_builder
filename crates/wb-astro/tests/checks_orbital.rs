@@ -115,6 +115,76 @@ fn applying_the_fix_clears_the_finding() {
 }
 
 #[test]
+fn applying_the_demotion_also_clears_the_finding() {
+    let mut log = earth_system();
+    add(
+        &mut log,
+        "astro.star",
+        vec![
+            ("name", t("Intruder")),
+            ("role", t("companion")),
+            ("mass_solar", f(0.8)),
+            ("distance_au", f(2.0)),
+        ],
+    );
+    let r = astro_report(&log);
+    let fix = findings(&r, "astro.companion_destabilizes")[0]
+        .suggestions
+        .iter()
+        .find(|s| s.code.as_str() == "astro.demote_companion")
+        .expect("the demotion fix")
+        .clone();
+    wb_constraints::apply_suggestion(&mut log, &fix).unwrap();
+    assert!(
+        findings(&astro_report(&log), "astro.companion_destabilizes").is_empty(),
+        "demoting the companion below the stellar limit should actually clear the finding"
+    );
+}
+
+#[test]
+fn moving_a_period_only_companion_out_does_not_raise_a_new_mismatch() {
+    let mut log = earth_system();
+    // Only a period is stated — no distance — so the fix has to add a distance beside
+    // it, and the stale period has to go in the same transaction or `resolve` prefers
+    // the new distance and immediately raises `astro.companion_period_mismatch`.
+    add(
+        &mut log,
+        "astro.star",
+        vec![
+            ("name", t("Intruder")),
+            ("role", t("companion")),
+            ("mass_solar", f(0.8)),
+            ("period_years", f(3.0)),
+        ],
+    );
+    let r = astro_report(&log);
+    let found = findings(&r, "astro.companion_destabilizes");
+    assert_eq!(found.len(), 1, "{:?}", codes(&r));
+    let fix = found[0]
+        .suggestions
+        .iter()
+        .find(|s| s.code.as_str() == "astro.move_companion_out")
+        .expect("the move-out fix")
+        .clone();
+    assert_eq!(
+        fix.writes.len(),
+        2,
+        "distance_au plus clearing the stale period_years"
+    );
+    wb_constraints::apply_suggestion(&mut log, &fix).unwrap();
+    let after = astro_report(&log);
+    assert!(
+        findings(&after, "astro.companion_destabilizes").is_empty(),
+        "the suggested distance should actually be stable"
+    );
+    assert!(
+        findings(&after, "astro.companion_period_mismatch").is_empty(),
+        "the move-out fix must not trade one finding for another: {:?}",
+        codes(&after)
+    );
+}
+
+#[test]
 fn a_distant_companion_leaves_the_planets_alone() {
     let mut log = earth_system();
     add(

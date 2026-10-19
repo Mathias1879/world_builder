@@ -365,6 +365,10 @@ impl SkyModel {
     }
 
     /// The named season a day-of-year falls in (spec §4.5).
+    ///
+    /// Season boundaries are computed on the common-year month layout —
+    /// `CalendarModel::season_of_day` calls `day_of_year` with `leap: false` for every
+    /// season — so in a leap year a boundary in or after the leap month is one day off.
     pub fn season_of(&self, day: f64) -> Option<&str> {
         let doy = if day.is_finite() {
             libm::floor(day) as i64

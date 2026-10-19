@@ -97,7 +97,13 @@ fn value_bytes(h: &mut blake3::Hasher, v: &wb_editlog::Value) {
             h.update(&e.op.lamport.to_le_bytes());
             h.update(&e.n.to_le_bytes());
         }
+        wb_editlog::Value::Float(x) => {
+            h.update(b"f");
+            h.update(&x.to_bits().to_le_bytes());
+        }
         other => {
+            // Not a stable wire format — no `Value` variant a `creates` entity actually
+            // uses should ever reach here; if one does, the golden moves and says so.
             h.update(b"?");
             h.update(format!("{other:?}").as_bytes());
         }

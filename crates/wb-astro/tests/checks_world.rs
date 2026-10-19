@@ -201,6 +201,52 @@ fn a_body_whose_period_and_distance_agree_is_left_alone() {
 }
 
 #[test]
+fn a_moons_conflicting_period_and_distance_are_reported_in_days_and_kilometres() {
+    let mut log = earth_system();
+    // Correctly converted to days and kilometres on this branch, so the finding's
+    // params have to say so too, not borrow the year/AU keys the non-moon branch uses.
+    add(
+        &mut log,
+        "astro.body",
+        vec![
+            ("name", t("Contradiction")),
+            ("order", i(2)),
+            ("class", t("moon")),
+            ("parent", Value::Entity(EntityId::PLANET)),
+            ("distance_km", f(300_000.0)),
+            ("period_days", f(1_000.0)),
+        ],
+    );
+    let r = astro_report(&log);
+    let found = findings(&r, "astro.period_distance_conflict");
+    assert_eq!(found.len(), 1, "{:?}", codes(&r));
+    for key in [
+        "stated_period_days",
+        "implied_period_days",
+        "stated_distance_km",
+    ] {
+        assert!(found[0].params.contains_key(key), "missing {key}");
+    }
+    assert!(
+        !found[0].params.contains_key("stated_period_years"),
+        "a moon's finding must not carry the year/AU keys: {:?}",
+        found[0].params.keys().collect::<Vec<_>>()
+    );
+    let keep_distance = found[0]
+        .suggestions
+        .iter()
+        .find(|s| s.code.as_str() == "astro.keep_distance")
+        .expect("the keep-distance fix");
+    assert!(keep_distance.params.contains_key("distance_km"));
+    let keep_period = found[0]
+        .suggestions
+        .iter()
+        .find(|s| s.code.as_str() == "astro.keep_period")
+        .expect("the keep-period fix");
+    assert!(keep_period.params.contains_key("period_days"));
+}
+
+#[test]
 fn months_that_do_not_sum_to_the_year_are_reported_and_fixed() {
     let mut log = aethoria();
     // 13 months of 30 days against a 400-day year: ten days missing.
@@ -287,6 +333,42 @@ fn a_leap_rule_that_still_drifts_is_reported() {
     assert!(
         findings(&r, "astro.calendar_sum_mismatch").is_empty(),
         "a quarter-day drift is drift, not a sum mismatch"
+    );
+}
+
+#[test]
+fn a_duplicated_month_index_is_reported_and_a_well_formed_calendar_is_not() {
+    let mut log = aethoria();
+    // Aethoria's second month ("Solspire") is given the first month's index, which
+    // silently corrupts date_of/day_index_of's round-trip for a third of the year.
+    let solspire = log
+        .state()
+        .live()
+        .find(|e| {
+            e.kind() == Some("astro.month")
+                && matches!(e.get("name"), Some(Value::Text(n)) if n == "Solspire")
+        })
+        .map(|e| e.id)
+        .expect("Solspire exists");
+    set(&mut log, solspire, vec![("index", i(1))]);
+
+    let r = astro_report(&log);
+    let found = findings(&r, "astro.month_index_duplicated");
+    assert_eq!(found.len(), 1, "{:?}", codes(&r));
+    assert_eq!(found[0].badness, 0.9);
+    assert!(matches!(found[0].params.get("index"), Some(Param::Int(1))));
+    assert!(found[0].params.contains_key("months"));
+    assert!(
+        found[0].suggestions.is_empty(),
+        "which index to move is the user's call, so no fix is offered"
+    );
+    let mehr = named(&log, "Mehr");
+    assert!(found[0].related.contains(&mehr));
+    assert!(found[0].related.contains(&solspire));
+
+    assert!(
+        findings(&astro_report(&aethoria()), "astro.month_index_duplicated").is_empty(),
+        "a well-formed calendar raises nothing"
     );
 }
 

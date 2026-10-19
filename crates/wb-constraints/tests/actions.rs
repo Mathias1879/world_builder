@@ -144,6 +144,11 @@ fn keep_anyway_and_unkeep() {
         keep_anyway(&mut log, no_kind, &[IssueCode::new("x")], None).unwrap_err(),
         ConstraintError::NotAConstraint(no_kind)
     );
+    // That raw-op detour is the only way to reach this branch at all: a kindless live
+    // entity is unreachable through the public `Transaction` API, so this variant is
+    // effectively dead in normal use. That is the honest cost of relaxing the gate from
+    // a fixed kind list to an open `KindCatalog` — this test exists to document it, not
+    // because any real caller can trigger it.
 }
 
 #[test]

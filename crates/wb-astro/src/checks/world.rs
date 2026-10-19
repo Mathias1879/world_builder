@@ -120,19 +120,41 @@ impl Checker for BodyCheck {
             sky.year_days() * sky.day_hours() * SECONDS_PER_HOUR
         };
         let distance_unit = if is_moon { 1_000.0 } else { AU_M };
+        // A moon's numbers are correctly converted to days and kilometres, so the
+        // params that name them have to say so too — hardcoding the year/AU keys on
+        // this branch would show "stated_period_years" beside a figure that is
+        // actually in days.
+        let (stated_period_param, implied_period_param, stated_distance_param) = if is_moon {
+            (
+                "stated_period_days",
+                "implied_period_days",
+                "stated_distance_km",
+            )
+        } else {
+            (
+                "stated_period_years",
+                "implied_period_years",
+                "stated_distance_au",
+            )
+        };
+        let (suggestion_distance_param, suggestion_period_param) = if is_moon {
+            ("distance_km", "period_days")
+        } else {
+            ("distance_au", "period_years")
+        };
         vec![
             Finding::issue(self.id(), "astro.period_distance_conflict", 0.7)
-                .with_param("stated_period_years", Param::Float(p / unit))
-                .with_param("implied_period_years", Param::Float(implied / unit))
-                .with_param("stated_distance_au", Param::Float(a / distance_unit))
+                .with_param(stated_period_param, Param::Float(p / unit))
+                .with_param(implied_period_param, Param::Float(implied / unit))
+                .with_param(stated_distance_param, Param::Float(a / distance_unit))
                 .with_suggestion(suggestion(
                     "astro.keep_distance",
-                    vec![("distance_au", Param::Float(a / distance_unit))],
+                    vec![(suggestion_distance_param, Param::Float(a / distance_unit))],
                     vec![(body.id, period_field.to_string(), Value::Null)],
                 ))
                 .with_suggestion(suggestion(
                     "astro.keep_period",
-                    vec![("period_years", Param::Float(p / unit))],
+                    vec![(suggestion_period_param, Param::Float(p / unit))],
                     vec![(body.id, distance_field.to_string(), Value::Null)],
                 )),
         ]
@@ -181,6 +203,10 @@ impl Checker for ClimateCheck {
                     vec![
                         ("year_days", Param::Float(year_days)),
                         ("distance_au", Param::Float(distance / AU_M)),
+                        // Explicit, not implied: this retuning is computed from the
+                        // primary star's flux alone, so a two-sun world is not misled
+                        // by a bare number that quietly ignores its second sun.
+                        ("basis", Param::Text("primary star only".to_string())),
                     ],
                     vec![(
                         EntityId::PLANET,

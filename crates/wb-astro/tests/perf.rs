@@ -70,19 +70,20 @@ fn a_year_of_daily_sky_is_within_budget() {
         total += sky.insolation(lat, day);
         total += sky.tide_range_m(day);
     }
-    let ms = start.elapsed().as_millis();
+    let us = start.elapsed().as_micros();
     assert!(total > 0.0);
-    // Measured on the development Mac: ~2 ms native, ~2-3 ms wasm. The budget is left far
-    // above either, so a loaded machine does not flake it — a guard that flakes gets
-    // disabled, which is worse than a loose one.
+    // Measured on the development Mac: ~2.3-2.4 ms native (wasm not measured here).
+    // Millisecond resolution was ~50% quantization at a 2 ms measurement, so this now
+    // times in microseconds, and the budget is tightened accordingly — still a wide
+    // margin over the measured figure, but one that would actually catch a regression.
     let budget = if cfg!(target_family = "wasm") {
-        3_000
+        150_000
     } else {
-        1_500
+        50_000
     };
     assert!(
-        ms <= budget,
-        "a year of daily sky for 33 bodies took {ms} ms (budget {budget} ms)"
+        us <= budget,
+        "a year of daily sky for 33 bodies took {us} us (budget {budget} us)"
     );
 }
 
@@ -92,18 +93,18 @@ fn evaluating_the_whole_system_is_within_budget() {
     let log = heavy_system();
     let start = std::time::Instant::now();
     let report = common::astro_report(&log);
-    let ms = start.elapsed().as_millis();
+    let us = start.elapsed().as_micros();
     assert!(report.verdicts.len() >= 33);
     // Every astro checker rebuilds the model per entity, which is the cost this measures.
-    // Measured on the development Mac: ~2-3 ms native, ~3 ms wasm.
+    // Measured on the development Mac: ~2.7-2.9 ms native (wasm not measured here).
     let budget = if cfg!(target_family = "wasm") {
-        4_000
+        150_000
     } else {
-        2_000
+        50_000
     };
     assert!(
-        ms <= budget,
-        "evaluated {} verdicts in {ms} ms (budget {budget} ms)",
+        us <= budget,
+        "evaluated {} verdicts in {us} us (budget {budget} us)",
         report.verdicts.len()
     );
 }

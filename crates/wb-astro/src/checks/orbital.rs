@@ -8,9 +8,13 @@
 use crate::checks::suggestion;
 use crate::sky::SkyModel;
 use crate::system::BodyView;
-use crate::units::{AU_M, MIN_STELLAR_MASS_SOLAR};
+use crate::units::{AU_M, MIN_STELLAR_MASS_SOLAR, SOLAR_MASS_KG};
 use wb_constraints::{CheckContext, Checker, ConstraintView, Finding, KindPattern, Param};
 use wb_editlog::{EntityId, Value};
+
+/// What `astro.demote_companion` writes: clearly under [`MIN_STELLAR_MASS_SOLAR`], not at
+/// it, so the companion is unambiguously no longer a star once the fix is applied.
+const DEMOTED_MASS_SOLAR: f64 = 0.07;
 
 /// Holman–Wiegert (1999) critical semi-major axis for an S-type orbit, as a fraction of
 /// the binary separation.
@@ -134,6 +138,12 @@ impl Checker for CompanionCheck {
         if star.is_primary_star {
             return Vec::new();
         }
+        // An object under the hydrogen-fusion limit is not a star, so it cannot
+        // destabilize anything as one; this is the gate `astro.demote_companion` has to
+        // clear for the fix to actually work.
+        if star.mass_kg < MIN_STELLAR_MASS_SOLAR * SOLAR_MASS_KG {
+            return Vec::new();
+        }
         let primary = sky.primary_star();
         let mut out = Vec::new();
 
@@ -165,6 +175,15 @@ impl Checker for CompanionCheck {
                 } else {
                     outermost * 10.0
                 };
+                // Moving the distance out can leave a stated period beside it, and
+                // `resolve` then prefers the distance — stranding a now-stale period
+                // that immediately raises `astro.companion_period_mismatch`. Clearing it
+                // in the same transaction is the `BodyCheck` null-write pattern, applied
+                // here so the fix clears the finding it was offered for and nothing else.
+                let mut move_out_writes = write(star.id, "distance_au", Value::Float(safe / AU_M));
+                if star.stated_period_s.is_some() && star.stated_a_m.is_none() {
+                    move_out_writes.push((star.id, "period_years".to_string(), Value::Null));
+                }
                 let mut f = Finding::issue(self.id(), "astro.companion_destabilizes", 0.9)
                     .with_param("critical_au", au(critical))
                     .with_param("distance_au", au(star.a_m))
@@ -173,12 +192,12 @@ impl Checker for CompanionCheck {
                     .with_suggestion(suggestion(
                         "astro.move_companion_out",
                         vec![("distance_au", au(safe))],
-                        write(star.id, "distance_au", Value::Float(safe / AU_M)),
+                        move_out_writes,
                     ))
                     .with_suggestion(suggestion(
                         "astro.demote_companion",
-                        vec![("mass_solar", Param::Float(MIN_STELLAR_MASS_SOLAR))],
-                        write(star.id, "mass_solar", Value::Float(MIN_STELLAR_MASS_SOLAR)),
+                        vec![("mass_solar", Param::Float(DEMOTED_MASS_SOLAR))],
+                        write(star.id, "mass_solar", Value::Float(DEMOTED_MASS_SOLAR)),
                     ));
                 for b in at_risk {
                     f = f.with_related(b.id);
@@ -213,12 +232,14 @@ impl Checker for CompanionCheck {
                     .filter(|b| b.id != star.id)
                     .any(|b| b.aphelion_m() > implied_a);
                 if inside && implied_a > 0.0 {
+                    // No distance was stated, so there is no `stated_distance_au` to
+                    // report — reporting the implied value under that key would show
+                    // the same number under both keys, as if the user had stated it.
                     out.push(
                         Finding::issue(self.id(), "astro.companion_period_mismatch", 0.8)
                             .with_param("stated_period_years", Param::Float(p / year_s))
                             .with_param("implied_period_years", Param::Float(p / year_s))
-                            .with_param("implied_distance_au", au(implied_a))
-                            .with_param("stated_distance_au", au(implied_a)),
+                            .with_param("implied_distance_au", au(implied_a)),
                     );
                 }
             }
@@ -285,14 +306,18 @@ impl Checker for OrderingCheck {
         let mut finding =
             Finding::issue(self.id(), "astro.order_mismatch", (places / 4.0).min(1.0))
                 .with_param("stated", Param::Int(body.order))
-                .with_param("places", Param::Int(places as i64))
-                .with_param("suggested", Param::Int(correct));
+                .with_param("places", Param::Int(places as i64));
+        // When the target equals the stated order there is nothing to suggest, and
+        // reporting it under `suggested` anyway would render as "suggested=8" beside
+        // "stated=8" — a fix that changes nothing, offered as if it were one.
         if correct != body.order {
-            finding = finding.with_suggestion(suggestion(
-                "astro.renumber",
-                vec![("order", Param::Int(correct))],
-                write(body.id, "order", Value::Int(correct)),
-            ));
+            finding = finding
+                .with_param("suggested", Param::Int(correct))
+                .with_suggestion(suggestion(
+                    "astro.renumber",
+                    vec![("order", Param::Int(correct))],
+                    write(body.id, "order", Value::Int(correct)),
+                ));
         }
         vec![finding]
     }

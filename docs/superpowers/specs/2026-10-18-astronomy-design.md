@@ -188,7 +188,7 @@ All register with `wb-constraints`; every finding carries the computed numbers a
 
 | Checker id | Issue code | Badness | Fires when |
 |---|---|---|---|
-| `astro.companion` | `astro.companion_destabilizes` | 0.9 | A star's gravitational reach (Hill radius; Holman–Wiegert critical distance) overlaps other bodies' orbits. Names the bodies. Suggestions: move beyond the outermost body; reduce mass below the stellar limit (0.08 M☉). |
+| `astro.companion` | `astro.companion_destabilizes` | 0.9 | A star's gravitational reach (Hill radius; Holman–Wiegert critical distance) overlaps other bodies' orbits. Names the bodies. Fires only above the stellar mass limit (0.08 M☉) — below it the object is not a star and cannot destabilize anything as one. Suggestions: move beyond the outermost body; demote it to 0.07 M☉, clearly below the stellar limit rather than at it, so the object the checker now exempts is the object the fix actually produces. |
 | `astro.companion` | `astro.companion_period_mismatch` | 0.8 | A companion star's **stated** `period_years` differs by more than 25% from the period its distance implies (or, when only the period is stated, the distance that period implies falls inside another body's orbit). Writing "it returns every year" is entering `period_years = 1 local year`, so the clash becomes explicit. The finding states both numbers and the distance each implies. |
 | `astro.ordering` | `astro.order_mismatch` | scaled | Stated `order` disagrees with derived distances. Badness = min(1, places_out_of_sequence / 4). Suggestion: renumber. |
 | `astro.orbits` | `astro.orbit_crossing` | 0.5 | Two orbits' perihelion/aphelion ranges overlap — unless their periods are within 2% of a simple ratio (≤ 5:4 denominators), which instead emits `astro.resonance_protects` as a **support**. |
@@ -199,6 +199,7 @@ All register with `wb-constraints`; every finding carries the computed numbers a
 | `astro.climate` | `astro.outside_habitable_zone` | 0.6 | Home-world equilibrium temperature (all stars, its albedo) outside 250–320 K. Suggestion: the distance that lands mid-range. |
 | `astro.calendar` | `astro.calendar_sum_mismatch` | 0.9 | Months don't sum to `year_days` (within the leap rule). Suggestion: adjust the longest month. |
 | `astro.calendar` | `astro.leap_drift` | 0.6 | The leap rule leaves more than 0.01 days/year of drift. |
+| `astro.calendar` | `astro.month_index_duplicated` | 0.9 | Two or more live months of the same calendar share an `index`, which silently breaks `date_of`/`day_index_of`'s round-trip for every date that lands on the duplicated month. Names the index and the months. No suggestion: which index should move is the user's call. |
 | `astro.body` | `astro.period_distance_conflict` | 0.7 | Both `period_years` and `distance_au` given and inconsistent by more than 5%. Suggestion: keep one. |
 | `astro.spin` | `astro.tidal_locking` | — | **Consequence**: estimated locking time shorter than a typical civilisation's history. |
 
@@ -220,9 +221,10 @@ All Phase-1 rules hold: `libm` only (no platform transcendentals), no FMA, sorte
 - **Property tests:** `date_of`/`day_index_of` round-trip over 100 000 consecutive days; proposed seasons tile the year exactly; insolation is hemisphere-symmetric for a circular, untilted orbit; `tide_range_m` is finite and non-negative everywhere.
 - **Cross-target golden:** a fixed system's computed values hash identically on all three targets (via `scripts/ci-local.sh`).
 - **Performance guard:** a 13-body system with 20 moons computes a full year of daily
-  insolation and tides in ~2 ms native and ~2-3 ms wasm, against budgets of
-  1500 and 3000 ms; evaluating every checker over the same system takes
-  ~2-3/~3 ms against 2000/4000. Release-only, wired into `scripts/check.sh`.
+  insolation and tides in ~2.3-2.4 ms native (wasm not measured), against a budget of
+  50 ms; evaluating every checker over the same system takes ~2.7-2.9 ms native, against
+  a 50 ms budget. Both guards time in microseconds and share a 150 ms wasm budget.
+  Release-only, wired into `scripts/check.sh`.
 
 ## 10. Out of scope
 

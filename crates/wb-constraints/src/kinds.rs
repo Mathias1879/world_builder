@@ -50,17 +50,20 @@ impl KindCatalog {
     }
 }
 
-/// The v1 constraint-kind catalog — closed, and deliberately so.
+/// The v1 constraint-kind catalog.
 ///
-/// `is_constraint_kind` is the only gate on what [`crate::evaluate`] looks at, so an
-/// entity whose kind is not listed here is silently ignored: no verdict, no error, no
-/// warning. That is the wanted behaviour for non-constraint entities (`import.base_map`
-/// and friends), but it also means a typo'd or future kind simply disappears from the
-/// report.
+/// This is no longer the only gate on what [`crate::evaluate`] looks at: that gate is
+/// [`KindCatalog`], carried in [`crate::CheckContext`], and this array is only the
+/// starter set it seeds via `KindCatalog::with_starter_kinds`. A subsystem that wants its
+/// own entities judged — `wb-astro` is the first — registers its kinds onto the catalog
+/// instead of editing this array, which is why the catalog, not this list, is where
+/// "does Constraints see this kind at all" is actually decided.
 ///
-/// The extension point is [`KindCatalog`], carried in [`crate::CheckContext`]; this array
-/// is the catalog `KindCatalog::with_starter_kinds` seeds, and the fallback
-/// `is_constraint_kind` reports on.
+/// An entity whose kind is in neither the starter set nor anything a subsystem
+/// registered is still silently ignored by `evaluate`: no verdict, no error, no warning.
+/// That remains the wanted behaviour for non-constraint entities (`import.base_map` and
+/// friends), but it also means a typo'd or forgotten `catalog.register` call makes a kind
+/// disappear from the report with nothing to say why.
 pub const CONSTRAINT_KINDS: &[&str] = &[
     "feature.mountain_range",
     "feature.hills",

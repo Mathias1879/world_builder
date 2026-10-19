@@ -505,3 +505,180 @@ fn an_integer_is_accepted_where_a_number_is_wanted() {
         "distance_au = 5 means 5.0"
     );
 }
+
+#[test]
+fn numeric_ceilings_reject_absurd_values() {
+    let mut log = new_log();
+    let body = |extra: (&'static str, Value)| {
+        vec![
+            ("name", t("X")),
+            ("order", i(1)),
+            ("class", t("rocky")),
+            ("distance_au", f(1.0)),
+            extra,
+        ]
+    };
+    for bad in [
+        ("distance_au", f(1e9 + 1.0)),
+        ("period_years", f(1e9 + 1.0)),
+        ("distance_km", f(1e12 + 1.0)),
+        ("period_days", f(1e9 + 1.0)),
+        ("radius_km", f(1e12 + 1.0)),
+        ("density_kgm3", f(1e6 + 1.0)),
+    ] {
+        assert!(
+            try_add(&mut log, "astro.body", body(bad.clone())).is_err(),
+            "{bad:?} over its ceiling was accepted"
+        );
+    }
+    // A belt's inner_au/outer_au share distance_au's ceiling.
+    assert!(
+        try_add(
+            &mut log,
+            "astro.body",
+            vec![
+                ("name", t("Belt")),
+                ("order", i(2)),
+                ("class", t("belt")),
+                ("inner_au", f(1e9 + 1.0)),
+                ("outer_au", f(1e9 + 2.0)),
+            ],
+        )
+        .is_err(),
+        "a belt extent over the ceiling was accepted"
+    );
+    // A star's mass_solar has its own ceiling.
+    assert!(
+        try_add(
+            &mut log,
+            "astro.star",
+            vec![
+                ("name", t("S")),
+                ("role", t("primary")),
+                ("mass_solar", f(1e6 + 1.0)),
+            ],
+        )
+        .is_err(),
+        "a star over the mass ceiling was accepted"
+    );
+    // The planet's year_days and day_hours.
+    let mut tx = log.transact("bad");
+    tx.set(EntityId::PLANET, "year_days", f(1e6 + 1.0));
+    assert!(
+        tx.commit().is_err(),
+        "year_days over its ceiling was accepted"
+    );
+    let mut tx = log.transact("bad");
+    tx.set(EntityId::PLANET, "day_hours", f(1e6 + 1.0));
+    assert!(
+        tx.commit().is_err(),
+        "day_hours over its ceiling was accepted"
+    );
+    // A month's days, and a calendar's leap_every_n.
+    let cal = add(
+        &mut log,
+        "astro.calendar",
+        vec![("epoch_name", t("AE")), ("weekdays", list(&["A"]))],
+    );
+    assert!(
+        try_add(
+            &mut log,
+            "astro.month",
+            vec![
+                ("index", i(1)),
+                ("name", t("Huge")),
+                ("days", i(100_001)),
+                ("calendar", Value::Entity(cal)),
+            ],
+        )
+        .is_err(),
+        "a month over the days ceiling was accepted"
+    );
+    assert!(
+        try_add(
+            &mut log,
+            "astro.calendar",
+            vec![
+                ("epoch_name", t("AE2")),
+                ("weekdays", list(&["A"])),
+                ("leap_rule", t("every_n")),
+                ("leap_every_n", i(10_001)),
+            ],
+        )
+        .is_err(),
+        "leap_every_n over its ceiling was accepted"
+    );
+    // Every ceiling still admits a value right at it.
+    assert!(
+        try_add(
+            &mut log,
+            "astro.month",
+            vec![
+                ("index", i(2)),
+                ("name", t("MaxLong")),
+                ("days", i(100_000)),
+                ("calendar", Value::Entity(cal)),
+            ],
+        )
+        .is_ok(),
+        "a month at exactly the ceiling was rejected"
+    );
+}
+
+#[test]
+fn the_two_former_calendar_panics_are_now_validator_rejections() {
+    let mut log = new_log();
+    let cal = add(
+        &mut log,
+        "astro.calendar",
+        vec![("epoch_name", t("AE")), ("weekdays", list(&["A"]))],
+    );
+    // Two months of i64::MAX/2 days used to overflow `CalendarModel::month_days`'s sum
+    // (`calendar.rs:67`); the ceiling now rejects either one long before the two could
+    // ever be summed.
+    assert!(
+        try_add(
+            &mut log,
+            "astro.month",
+            vec![
+                ("index", i(1)),
+                ("name", t("Huge1")),
+                ("days", i(i64::MAX / 2)),
+                ("calendar", Value::Entity(cal)),
+            ],
+        )
+        .is_err(),
+        "an overflow-sized month was accepted"
+    );
+    assert!(
+        try_add(
+            &mut log,
+            "astro.month",
+            vec![
+                ("index", i(2)),
+                ("name", t("Huge2")),
+                ("days", i(i64::MAX / 2)),
+                ("calendar", Value::Entity(cal)),
+            ],
+        )
+        .is_err(),
+        "a second overflow-sized month was accepted"
+    );
+    // `leap_every_n = i64::MAX` used to overflow `n * base + 1` in `date_of`
+    // (`calendar.rs:127`); the ceiling now rejects the calendar before that arithmetic
+    // ever runs.
+    assert!(
+        try_add(
+            &mut log,
+            "astro.calendar",
+            vec![
+                ("epoch_name", t("AE2")),
+                ("weekdays", list(&["A"])),
+                ("leap_rule", t("every_n")),
+                ("leap_every_n", i(i64::MAX)),
+            ],
+        )
+        .is_err(),
+        "leap_every_n = i64::MAX was accepted"
+    );
+}
