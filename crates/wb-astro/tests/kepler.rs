@@ -79,6 +79,54 @@ fn the_solver_is_bounded_for_an_out_of_range_eccentricity() {
 }
 
 #[test]
+fn non_finite_inputs_give_finite_output() {
+    // radius_m guards against non-finite a_m and ea
+    for &a in &[f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+        let r = radius_m(a, 0.2, PI / 4.0);
+        assert!(r.is_finite(), "radius_m({a}, 0.2, π/4) gave {r}");
+    }
+    for &ea in &[f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+        let r = radius_m(AU_M, 0.2, ea);
+        assert!(r.is_finite(), "radius_m(AU_M, 0.2, {ea}) gave {r}");
+    }
+
+    // true_anomaly guards against non-finite ea
+    for &ea in &[f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+        let ta = true_anomaly(ea, 0.3);
+        assert!(ta.is_finite(), "true_anomaly({ea}, 0.3) gave {ta}");
+    }
+
+    // orbit_position guards against non-finite a_m, inclination_rad, and mean_anomaly
+    for &a in &[f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+        let p = orbit_position(a, 0.2, 0.1, PI / 4.0);
+        assert!(p.x.is_finite(), "orbit_position({a}, ...).x is not finite");
+        assert!(p.y.is_finite(), "orbit_position({a}, ...).y is not finite");
+        assert!(p.z.is_finite(), "orbit_position({a}, ...).z is not finite");
+    }
+    for &inc in &[f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+        let p = orbit_position(AU_M, 0.2, inc, PI / 4.0);
+        assert!(
+            p.x.is_finite(),
+            "orbit_position(..., {inc}, ...).x is not finite"
+        );
+        assert!(
+            p.y.is_finite(),
+            "orbit_position(..., {inc}, ...).y is not finite"
+        );
+        assert!(
+            p.z.is_finite(),
+            "orbit_position(..., {inc}, ...).z is not finite"
+        );
+    }
+    for &m in &[f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+        let p = orbit_position(AU_M, 0.2, 0.1, m);
+        assert!(p.x.is_finite(), "orbit_position(..., {m}).x is not finite");
+        assert!(p.y.is_finite(), "orbit_position(..., {m}).y is not finite");
+        assert!(p.z.is_finite(), "orbit_position(..., {m}).z is not finite");
+    }
+}
+
+#[test]
 fn periapsis_and_apoapsis_are_where_they_should_be() {
     let a = AU_M;
     let e = 0.2;

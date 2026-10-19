@@ -83,6 +83,9 @@ pub fn eccentric_anomaly(mean_anomaly: f64, e: f64) -> f64 {
 
 /// True anomaly from eccentric anomaly.
 pub fn true_anomaly(eccentric_anomaly: f64, e: f64) -> f64 {
+    if !eccentric_anomaly.is_finite() {
+        return 0.0;
+    }
     let e = clamp_e(e);
     let s = libm::sin(eccentric_anomaly);
     let c = libm::cos(eccentric_anomaly);
@@ -91,6 +94,9 @@ pub fn true_anomaly(eccentric_anomaly: f64, e: f64) -> f64 {
 
 /// Distance from the focus at eccentric anomaly `ea`: `r = a(1 − e·cos E)`.
 pub fn radius_m(a_m: f64, e: f64, ea: f64) -> f64 {
+    if !a_m.is_finite() || !ea.is_finite() {
+        return 0.0;
+    }
     a_m * (1.0 - clamp_e(e) * libm::cos(ea))
 }
 
@@ -101,6 +107,9 @@ pub fn radius_m(a_m: f64, e: f64, ea: f64) -> f64 {
 /// is what makes "both suns in the sky at once" a property of the orbits rather than a
 /// free parameter.
 pub fn orbit_position(a_m: f64, e: f64, inclination_rad: f64, mean_anomaly: f64) -> Vec3 {
+    if a_m <= 0.0 || !a_m.is_finite() || !inclination_rad.is_finite() || !mean_anomaly.is_finite() {
+        return Vec3::new(0.0, 0.0, 0.0);
+    }
     let e = clamp_e(e);
     let ea = eccentric_anomaly(mean_anomaly, e);
     let r = radius_m(a_m, e, ea);
