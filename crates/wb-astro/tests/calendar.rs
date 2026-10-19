@@ -198,9 +198,13 @@ fn an_impossible_date_has_no_day_index() {
 
 #[test]
 fn ten_million_days_out_still_round_trips() {
-    let sky = SkyModel::build(aethoria().state()).unwrap();
-    for d in [-10_000_000, -9_999_999, 1_000_001, 10_000_000] {
-        assert_eq!(sky.day_index_of(sky.date_of(d)), Some(d));
+    // Both calendars: the no-leap Aethorian one and the leap-every-4 Gregorian one,
+    // because the leap rule is what makes the cycle decomposition non-trivial.
+    for log in [aethoria(), earth_system()] {
+        let sky = SkyModel::build(log.state()).unwrap();
+        for d in [-10_000_000, -9_999_999, -1, 0, 1, 1_000_001, 10_000_000] {
+            assert_eq!(sky.day_index_of(sky.date_of(d)), Some(d), "day {d}");
+        }
     }
 }
 
@@ -271,6 +275,13 @@ proptest! {
     #[test]
     fn every_day_index_round_trips(d in -10_000_000i64..10_000_000) {
         let log = aethoria();
+        let sky = SkyModel::build(log.state()).unwrap();
+        prop_assert_eq!(sky.day_index_of(sky.date_of(d)), Some(d));
+    }
+
+    #[test]
+    fn every_day_index_round_trips_with_a_leap_rule(d in -10_000_000i64..10_000_000) {
+        let log = earth_system();
         let sky = SkyModel::build(log.state()).unwrap();
         prop_assert_eq!(sky.day_index_of(sky.date_of(d)), Some(d));
     }

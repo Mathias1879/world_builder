@@ -122,7 +122,7 @@ impl CalendarModel {
     /// The date on `day_index`.
     pub fn date_of(&self, day_index: i64) -> Date {
         let base = self.month_days().max(1);
-        let (year, mut rest) = match self.leap_every_n {
+        let (year, rest) = match self.leap_every_n {
             Some(n) if n >= 2 => {
                 let cycle = n * base + 1;
                 let cycles = day_index.div_euclid(cycle);
@@ -138,15 +138,10 @@ impl CalendarModel {
             _ => (day_index.div_euclid(base) + 1, day_index.rem_euclid(base)),
         };
         let leap = self.is_leap(year);
-        let mut position = 0;
-        while position + 1 < self.months.len() {
-            let days = self.days_in(position, leap);
-            if rest < days {
-                break;
-            }
-            rest -= days;
-            position += 1;
-        }
+        // `rest` is already inside the year here, so `month_day_of`'s leading
+        // `rem_euclid` is a no-op; this reuses its month-walking loop rather than
+        // repeating it.
+        let (position, day) = self.month_day_of(rest, leap);
         let weekday_index = if self.weekdays.is_empty() {
             0
         } else {
@@ -155,7 +150,7 @@ impl CalendarModel {
         Date {
             year,
             month_index: self.months.get(position).map(|m| m.index).unwrap_or(1),
-            day: rest + 1,
+            day,
             weekday_index,
         }
     }
