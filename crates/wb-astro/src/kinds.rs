@@ -6,7 +6,7 @@
 //! so is a checker's job (§6), not a validator's.
 
 use crate::units::BodyClass;
-use wb_constraints::KindCatalog;
+use wb_constraints::{KindCatalog, text};
 use wb_editlog::{EditLog, EntityKind, EntityView, Value};
 
 /// Every kind this subsystem owns.
@@ -60,13 +60,6 @@ pub fn words<'a>(e: &EntityView<'a>, field: &str) -> Option<Vec<&'a str>> {
                 _ => None,
             })
             .collect(),
-        _ => None,
-    }
-}
-
-fn text<'a>(e: &EntityView<'a>, field: &str) -> Option<&'a str> {
-    match e.get(field) {
-        Some(Value::Text(s)) => Some(s.as_str()),
         _ => None,
     }
 }

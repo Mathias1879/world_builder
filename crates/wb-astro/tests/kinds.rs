@@ -304,6 +304,34 @@ fn a_star_needs_a_role_and_a_mass() {
         )
         .is_err()
     );
+    assert!(
+        try_add(
+            &mut log,
+            "astro.star",
+            vec![
+                ("name", t("S")),
+                ("role", t("primary")),
+                ("mass_solar", f(1.0)),
+                ("luminosity_solar", f(0.0)),
+            ],
+        )
+        .is_err(),
+        "a star cannot radiate zero or less"
+    );
+    assert!(
+        try_add(
+            &mut log,
+            "astro.star",
+            vec![
+                ("name", t("S")),
+                ("role", t("primary")),
+                ("mass_solar", f(1.0)),
+                ("luminosity_solar", f(-1.0)),
+            ],
+        )
+        .is_err(),
+        "a star cannot radiate zero or less"
+    );
 }
 
 #[test]
