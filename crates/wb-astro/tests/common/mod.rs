@@ -320,3 +320,52 @@ pub fn named(log: &EditLog, name: &str) -> EntityId {
         .map(|v| v.id)
         .unwrap_or_else(|| panic!("no entity named {name}"))
 }
+
+use std::collections::BTreeSet;
+use wb_astro::{register_catalog, with_astro_checks};
+use wb_constraints::{
+    CheckContext, CheckerRegistry, Finding, KindCatalog, Report, UnknownTerrain, evaluate,
+};
+use wb_world::Planet;
+
+/// Evaluates a world with the astro kinds and checkers registered.
+pub fn astro_report(log: &EditLog) -> Report {
+    let mut catalog = KindCatalog::with_starter_kinds();
+    register_catalog(&mut catalog);
+    let mut registry = CheckerRegistry::new();
+    with_astro_checks(&mut registry);
+    let ctx = CheckContext::with_catalog(log.state(), Planet::default(), &UnknownTerrain, &catalog);
+    evaluate(&ctx, &registry)
+}
+
+/// Every issue, support and consequence code in a report.
+pub fn codes(r: &Report) -> BTreeSet<String> {
+    let mut out = BTreeSet::new();
+    for v in &r.verdicts {
+        for f in v
+            .issues
+            .iter()
+            .chain(&v.intentional)
+            .chain(&v.supports)
+            .chain(&v.consequences)
+        {
+            out.insert(f.code.0.clone());
+        }
+    }
+    out
+}
+
+/// Every finding with this code.
+pub fn findings<'a>(r: &'a Report, code: &str) -> Vec<&'a Finding> {
+    r.verdicts
+        .iter()
+        .flat_map(|v| {
+            v.issues
+                .iter()
+                .chain(&v.intentional)
+                .chain(&v.supports)
+                .chain(&v.consequences)
+        })
+        .filter(|f| f.code.0 == code)
+        .collect()
+}

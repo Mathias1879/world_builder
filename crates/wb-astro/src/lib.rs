@@ -2,6 +2,7 @@
 //! checkers that judge both.
 
 mod calendar;
+mod checks;
 mod error;
 mod kepler;
 mod kinds;
@@ -11,6 +12,10 @@ mod system;
 mod units;
 
 pub use calendar::{CalendarModel, Date, MonthView, SeasonView};
+pub use checks::{
+    BeltCheck, CompanionCheck, MoonCheck, OrbitCheck, OrderingCheck, critical_distance_m,
+    critical_fraction, hill_radius_m, roche_limit_m, simple_ratio, with_astro_checks,
+};
 pub use error::AstroError;
 pub use kepler::{
     KEPLER_ITERATIONS, eccentric_anomaly, ecliptic_longitude, mean_anomaly, orbit_position,
