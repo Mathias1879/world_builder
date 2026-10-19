@@ -123,14 +123,24 @@ fn proposed_names_describe_the_light_and_are_distinct() {
     assert_eq!(names.len(), 4);
     let unique: BTreeSet<&String> = names.iter().collect();
     assert_eq!(unique.len(), 4, "names must be distinct: {names:?}");
-    // Earth at 45°N has a clear high and low season.
+    // Cuts land ON the turning points, so each season is a monotonic arc between two of
+    // them: Earth at 45°N yields two falling and two rising seasons, never a "High Sun"
+    // or "Low Sun" (those need |net| below a tenth of the curve's amplitude, which only
+    // a short or a nearly flat season reaches — see the zero-tilt test below).
+    let known = ["Rising Light", "Falling Light", "High Sun", "Low Sun"];
+    for n in &names {
+        assert!(
+            known.iter().any(|k| n.starts_with(k)),
+            "unexpected season name {n:?}"
+        );
+    }
     assert!(
-        names.iter().any(|n| n.contains("High Sun")),
-        "no bright season among {names:?}"
+        names.iter().any(|n| n.starts_with("Rising Light")),
+        "Earth should have a brightening season among {names:?}"
     );
     assert!(
-        names.iter().any(|n| n.contains("Low Sun")),
-        "no dark season among {names:?}"
+        names.iter().any(|n| n.starts_with("Falling Light")),
+        "Earth should have a dimming season among {names:?}"
     );
 }
 

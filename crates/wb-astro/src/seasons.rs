@@ -32,15 +32,22 @@ fn turning_points(curve: &[f64]) -> Vec<i64> {
         }
     }
     let mut points = extrema.clone();
-    // The steepest day between each pair of neighbouring extrema.
+    // The steepest day of each arc between neighbouring extrema, including the arc that
+    // wraps the year end — without that last one, the steepest day near day 0 is never a
+    // candidate and a cut there falls back to even spacing instead of a turning point.
     if extrema.len() >= 2 {
-        for pair in extrema.windows(2) {
-            let (a, b) = (pair[0] as usize, pair[1] as usize);
+        for j in 0..extrema.len() {
+            let a = extrema[j] as usize;
+            let b = if j + 1 < extrema.len() {
+                extrema[j + 1] as usize
+            } else {
+                extrema[0] as usize + n
+            };
             let mut best = (f64::MIN, a);
             for i in a..=b {
                 let s = slope(i).abs();
                 if s > best.0 {
-                    best = (s, i);
+                    best = (s, i % n);
                 }
             }
             points.push(best.1 as i64);
