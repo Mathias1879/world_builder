@@ -219,7 +219,10 @@ All Phase-1 rules hold: `libm` only (no platform transcendentals), no FMA, sorte
 - **Aethoria acceptance:** the thirteen-body system, three moons, two suns, 30-hour day, 390-day year, 13 months. Asserts: the three moons beat into a maximum spring tide on a repeatable day; the calendar round-trips; Sol Secundus produces both `astro.companion_destabilizes` and `astro.companion_period_mismatch` with real numbers; the resonance checker names at least one pair.
 - **Property tests:** `date_of`/`day_index_of` round-trip over 100 000 consecutive days; proposed seasons tile the year exactly; insolation is hemisphere-symmetric for a circular, untilted orbit; `tide_range_m` is finite and non-negative everywhere.
 - **Cross-target golden:** a fixed system's computed values hash identically on all three targets (via `scripts/ci-local.sh`).
-- **Performance guard:** a 13-body system with 20 moons computes a full year of daily insolation and tides within a budget set from the first measurement, release-only, wired into `scripts/check.sh`.
+- **Performance guard:** a 13-body system with 20 moons computes a full year of daily
+  insolation and tides in ~2 ms native and ~2-3 ms wasm, against budgets of
+  1500 and 3000 ms; evaluating every checker over the same system takes
+  ~2-3/~3 ms against 2000/4000. Release-only, wired into `scripts/check.sh`.
 
 ## 10. Out of scope
 

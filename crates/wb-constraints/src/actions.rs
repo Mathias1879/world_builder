@@ -1,5 +1,5 @@
 use crate::error::ConstraintError;
-use crate::kinds::{is_constraint_kind, text};
+use crate::kinds::text;
 use crate::model::{IssueCode, Suggestion};
 use crate::templates::render_suggestion;
 use std::collections::BTreeSet;
@@ -50,10 +50,15 @@ fn kept(
         .entity(constraint)
         .filter(|v| !v.is_deleted())
         .ok_or(ConstraintError::UnknownEntity(constraint))?;
-    let kind = view.kind().unwrap_or_default();
-    if !is_constraint_kind(kind) {
+    // Any live, kinded entity may be kept anyway. This deliberately does NOT gate on the
+    // starter catalog: subsystems register their own kinds in a `KindCatalog` that this
+    // function has no access to, so gating here would silently refuse keep-anyway for
+    // every kind outside the v1 list. The caller offers keep-anyway only for findings it
+    // just rendered, and `keep_codes` on an unjudged entity is inert — `evaluate` reads
+    // it only for kinds in its catalog.
+    let Some(kind) = view.kind() else {
         return Err(ConstraintError::NotAConstraint(constraint));
-    }
+    };
     let codes = match view.get("keep_codes") {
         Some(Value::List(items)) => items
             .iter()

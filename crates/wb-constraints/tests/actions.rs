@@ -108,10 +108,41 @@ fn keep_anyway_and_unkeep() {
         ConstraintError::Edit(EditError::EmptyTransaction)
     );
 
-    let not = add(&mut log, "import.base_map", vec![]);
+    // `kept()` now accepts any live entity that has a kind at all (subsystems register
+    // their own kinds in a `KindCatalog` this function never sees), so `NotAConstraint`
+    // is retargeted at an entity with no kind whatsoever. The ordinary `Transaction` API
+    // cannot produce one — `create` always sets `kind`, and the planet's is fixed — so
+    // this borrows the sync path's raw-op technique (as in `wb-editlog`'s own sync
+    // tests): clone an already-committed op, retarget its one write at a fresh entity id
+    // with a non-reserved field, and feed it in via `apply_ops`, which applies writes
+    // directly with no "known entity" or kind-schema check at all.
+    let source = log.op(d.op).unwrap().clone();
+    let name_write = source
+        .writes
+        .iter()
+        .find(|w| w.field.as_str() == "name")
+        .unwrap()
+        .clone();
+    let no_kind = EntityId {
+        op: wb_editlog::OpId {
+            lamport: log.heads().iter().map(|h| h.lamport).max().unwrap() + 1,
+            actor: wb_editlog::ActorId([9; 16]),
+        },
+        n: 0,
+    };
+    let mut raw = source;
+    raw.id = no_kind.op;
+    raw.parents = log.heads().clone();
+    raw.writes = vec![wb_editlog::FieldWrite {
+        entity: no_kind,
+        field: name_write.field,
+        value: Value::from("Nameless"),
+    }];
+    log.apply_ops(vec![raw]).unwrap();
+    assert_eq!(log.state().entity(no_kind).unwrap().kind(), None);
     assert_eq!(
-        keep_anyway(&mut log, not, &[IssueCode::new("x")], None).unwrap_err(),
-        ConstraintError::NotAConstraint(not)
+        keep_anyway(&mut log, no_kind, &[IssueCode::new("x")], None).unwrap_err(),
+        ConstraintError::NotAConstraint(no_kind)
     );
 }
 
