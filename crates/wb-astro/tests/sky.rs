@@ -82,13 +82,28 @@ fn insolation_follows_the_seasons() {
     let quarter = 365.2422 / 4.0;
     let (n0, s0) = (sky.insolation(north, 0.0), sky.insolation(south, 0.0));
     close(n0, s0, 0.02);
+
+    let primary = sky.primary_star().id;
+    // Day 0 puts the home world at periapsis on +x, so the star is seen at ecliptic
+    // longitude 180° and the declination is zero: an equinox. A quarter year on it is
+    // seen at 270°, so the declination is -ε and the southern hemisphere is in summer.
+    // This pins declination against the orbit's phase; the assertions below pin
+    // insolation's response to declination. Together they are asymmetric, so a globally
+    // negated declination fails here — which the previous symmetric form did not.
+    let decl_quarter = sky.declination(sky.position(primary, quarter).expect("the primary"));
+    assert!(
+        decl_quarter < -0.3,
+        "a quarter year in, the declination should be about -23.44 deg, got {} deg",
+        decl_quarter.to_degrees()
+    );
+
     let (n1, s1) = (
         sky.insolation(north, quarter),
         sky.insolation(south, quarter),
     );
     assert!(
-        (n1 > s1 * 2.0) || (s1 > n1 * 2.0),
-        "a solstice should be lopsided: {n1} vs {s1}"
+        s1 > n1 * 2.0,
+        "with a negative declination the south should be far brighter: north {n1}, south {s1}"
     );
     // Half a year after that solstice, the lopsidedness reverses.
     let n3 = sky.insolation(north, 3.0 * quarter);
