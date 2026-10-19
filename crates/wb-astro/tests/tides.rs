@@ -46,29 +46,39 @@ fn earths_spring_tides_are_about_twice_its_neaps() {
 #[test]
 fn three_moons_beat_into_a_repeatable_maximum() {
     let sky = SkyModel::build(aethoria().state()).unwrap();
-    // Cycles of 10, 15 and 30 local days: everything realigns every 30 days.
-    let day_of_max = |from: i64| {
+    let peak_in = |from: i64| {
         (from..from + 30)
             .map(|d| (sky.tide_range_m(d as f64), d))
             .fold(
                 (f64::MIN, from),
                 |best, x| if x.0 > best.0 { x } else { best },
             )
-            .1
     };
-    let first = day_of_max(0);
-    assert_eq!(
-        (first - day_of_max(30)).rem_euclid(30),
-        0,
-        "the spring tide should land on the same day of the 30-day beat"
-    );
-    assert_eq!((first - day_of_max(300)).rem_euclid(30), 0);
+    let (height, day) = peak_in(0);
+    assert!(height > 0.0 && height.is_finite(), "peak height {height}");
 
-    let max = sky.tide_range_m(first as f64);
-    let min = (0..30)
+    // The three moons (10, 15 and 30-day cycles) realign every 30 days, but the primary
+    // star's tide is not commensurate with that beat: its amplitude is 0.170 m against
+    // the outermost moon's 0.169 m, and its doubled phase rotates 55.4 deg per 30 days,
+    // so the combined peak wanders through the year. It realigns exactly once a year,
+    // because 390 local days is both one year and 13 x 30 days.
+    for years in [1, 10] {
+        let (_, d) = peak_in(years * 390);
+        assert_eq!(
+            d - years * 390,
+            day,
+            "the spring tide should recur on the same day of each year, not day {d}"
+        );
+    }
+
+    // And the beat is real: the peak towers over the quietest day of the same cycle.
+    let trough = (0..30)
         .map(|d| sky.tide_range_m(d as f64))
         .fold(f64::MAX, f64::min);
-    assert!(max > min * 1.5, "three moons should beat: {max} vs {min}");
+    assert!(
+        height > trough * 1.5,
+        "three moons should beat hard: {height} against {trough}"
+    );
 }
 
 #[test]
