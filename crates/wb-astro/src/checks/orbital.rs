@@ -5,13 +5,11 @@
 //! judging, and a system is tens of bodies. If it ever shows up in the perf guard, the fix
 //! is the memo slot recorded in the Constraints follow-ups, not a cache in here.
 
+use crate::checks::suggestion;
 use crate::sky::SkyModel;
 use crate::system::BodyView;
 use crate::units::{AU_M, MIN_STELLAR_MASS_SOLAR};
-use std::collections::BTreeMap;
-use wb_constraints::{
-    CheckContext, Checker, ConstraintView, Finding, IssueCode, KindPattern, Param, Suggestion,
-};
+use wb_constraints::{CheckContext, Checker, ConstraintView, Finding, KindPattern, Param};
 use wb_editlog::{EntityId, Value};
 
 /// Holman–Wiegert (1999) critical semi-major axis for an S-type orbit, as a fraction of
@@ -94,7 +92,8 @@ pub fn simple_ratio(ratio: f64) -> Option<(i64, i64)> {
     best
 }
 
-fn model(ctx: &CheckContext<'_>) -> Option<SkyModel> {
+/// Builds the model a checker judges against, or `None` when the system cannot be read.
+pub(crate) fn checker_model(ctx: &CheckContext<'_>) -> Option<SkyModel> {
     SkyModel::build(ctx.state).ok()
 }
 
@@ -113,22 +112,6 @@ fn write(entity: EntityId, field: &str, value: Value) -> Vec<(EntityId, String, 
     vec![(entity, field.to_string(), value)]
 }
 
-fn suggestion(
-    code: &str,
-    params: Vec<(&str, Param)>,
-    writes: Vec<(EntityId, String, Value)>,
-) -> Suggestion {
-    Suggestion {
-        code: IssueCode::new(code),
-        params: params
-            .into_iter()
-            .map(|(k, v)| (k.to_string(), v))
-            .collect::<BTreeMap<String, Param>>(),
-        writes,
-        creates: Vec::new(),
-    }
-}
-
 /// Companion-star stability and the period it claims.
 pub struct CompanionCheck;
 
@@ -142,7 +125,7 @@ impl Checker for CompanionCheck {
     }
 
     fn check(&self, c: ConstraintView<'_>, ctx: &CheckContext<'_>) -> Vec<Finding> {
-        let Some(sky) = model(ctx) else {
+        let Some(sky) = checker_model(ctx) else {
             return Vec::new();
         };
         let Some(star) = sky.body(c.id) else {
@@ -258,7 +241,7 @@ impl Checker for OrderingCheck {
     }
 
     fn check(&self, c: ConstraintView<'_>, ctx: &CheckContext<'_>) -> Vec<Finding> {
-        let Some(sky) = model(ctx) else {
+        let Some(sky) = checker_model(ctx) else {
             return Vec::new();
         };
         let Some(body) = sky.body(c.id) else {
@@ -328,7 +311,7 @@ impl Checker for OrbitCheck {
     }
 
     fn check(&self, c: ConstraintView<'_>, ctx: &CheckContext<'_>) -> Vec<Finding> {
-        let Some(sky) = model(ctx) else {
+        let Some(sky) = checker_model(ctx) else {
             return Vec::new();
         };
         let Some(body) = sky.body(c.id) else {
@@ -401,7 +384,7 @@ impl Checker for MoonCheck {
     }
 
     fn check(&self, c: ConstraintView<'_>, ctx: &CheckContext<'_>) -> Vec<Finding> {
-        let Some(sky) = model(ctx) else {
+        let Some(sky) = checker_model(ctx) else {
             return Vec::new();
         };
         let Some(moon) = sky.body(c.id) else {
@@ -451,7 +434,7 @@ impl Checker for BeltCheck {
     }
 
     fn check(&self, c: ConstraintView<'_>, ctx: &CheckContext<'_>) -> Vec<Finding> {
-        let Some(sky) = model(ctx) else {
+        let Some(sky) = checker_model(ctx) else {
             return Vec::new();
         };
         let Some(belt) = sky.body(c.id) else {

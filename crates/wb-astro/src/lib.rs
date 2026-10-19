@@ -13,8 +13,10 @@ mod units;
 
 pub use calendar::{CalendarModel, Date, MonthView, SeasonView};
 pub use checks::{
-    BeltCheck, CompanionCheck, MoonCheck, OrbitCheck, OrderingCheck, critical_distance_m,
-    critical_fraction, hill_radius_m, roche_limit_m, simple_ratio, with_astro_checks,
+    BeltCheck, BodyCheck, CalendarCheck, ClimateCheck, CompanionCheck, HABITABLE_K, MoonCheck,
+    OrbitCheck, OrderingCheck, SpinCheck, critical_distance_m, critical_fraction,
+    equilibrium_temperature_k, hill_radius_m, locking_time_s, mean_stellar_flux, roche_limit_m,
+    simple_ratio, with_astro_checks,
 };
 pub use error::AstroError;
 pub use kepler::{
@@ -31,3 +33,14 @@ pub use units::{
     STEFAN_BOLTZMANN, gravity_from_mass, luminosity_from_mass_solar, mass_from_density,
     mass_from_gravity,
 };
+
+use wb_constraints::{CheckerRegistry, KindCatalog};
+use wb_editlog::EditLog;
+
+/// Wires this subsystem into a world: its kinds, their validators, and its checkers
+/// (spec §5).
+pub fn register(log: &mut EditLog, registry: &mut CheckerRegistry, catalog: &mut KindCatalog) {
+    register_kinds(log);
+    register_catalog(catalog);
+    with_astro_checks(registry);
+}
