@@ -9,7 +9,7 @@ mod sky;
 mod system;
 mod units;
 
-pub use calendar::{CalendarModel, MonthView, SeasonView};
+pub use calendar::{CalendarModel, Date, MonthView, SeasonView};
 pub use error::AstroError;
 pub use kepler::{
     KEPLER_ITERATIONS, eccentric_anomaly, ecliptic_longitude, mean_anomaly, orbit_position,

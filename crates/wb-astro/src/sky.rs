@@ -1,6 +1,6 @@
 //! `SkyModel`: the resolved system, and every number the rest of the engine asks of it.
 
-use crate::calendar::CalendarModel;
+use crate::calendar::{CalendarModel, Date};
 use crate::error::AstroError;
 use crate::kepler::{ecliptic_longitude, mean_anomaly, orbit_position};
 use crate::system::{BodyView, HomeSettings, resolve};
@@ -351,5 +351,25 @@ impl SkyModel {
         }
         let m = SOLAR_MAGNITUDE - 2.5 * libm::log10(flux / SOLAR_CONSTANT_W);
         if m.is_finite() { Some(m) } else { None }
+    }
+
+    /// The date on an absolute day index since the epoch.
+    pub fn date_of(&self, day_index: i64) -> Date {
+        self.calendar.date_of(day_index)
+    }
+
+    /// The absolute day index of a date, or `None` if no such day exists.
+    pub fn day_index_of(&self, date: Date) -> Option<i64> {
+        self.calendar.day_index_of(date)
+    }
+
+    /// The named season a day-of-year falls in (spec §4.5).
+    pub fn season_of(&self, day: f64) -> Option<&str> {
+        let doy = if day.is_finite() {
+            libm::floor(day) as i64
+        } else {
+            0
+        };
+        self.calendar.season_of_day(doy)
     }
 }

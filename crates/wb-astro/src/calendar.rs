@@ -37,6 +37,17 @@ pub struct CalendarModel {
     pub seasons: Vec<SeasonView>,
 }
 
+/// A date in a world's own calendar. `year` 1 is the epoch year; 0 and below precede it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Date {
+    pub year: i64,
+    /// The month's own `index` field, not its position.
+    pub month_index: i64,
+    /// 1-based day of the month.
+    pub day: i64,
+    pub weekday_index: usize,
+}
+
 fn text(v: Option<&Value>) -> Option<String> {
     match v {
         Some(Value::Text(s)) => Some(s.clone()),
@@ -66,15 +77,156 @@ impl CalendarModel {
         self.months.iter().position(|m| m.id == id)
     }
 
-    /// Days in one month of a given year, honouring the leap rule.
+    /// Days in one month of a given year.
+    ///
+    /// The leap day goes to `leap_month`; with `leap_rule = every_n` and no month named,
+    /// it goes to the last month of the year, so the year length still adds up.
     pub fn days_in(&self, position: usize, leap: bool) -> i64 {
-        match self.months.get(position) {
-            None => 0,
-            Some(m) => {
-                let bonus = i64::from(leap && self.leap_month == Some(m.id));
-                m.days + bonus
+        let Some(m) = self.months.get(position) else {
+            return 0;
+        };
+        let holds_leap_day = match self.leap_month {
+            Some(id) => id == m.id,
+            None => position + 1 == self.months.len(),
+        };
+        m.days + i64::from(leap && holds_leap_day)
+    }
+
+    /// Whether `year` carries a leap day.
+    pub fn is_leap(&self, year: i64) -> bool {
+        match self.leap_every_n {
+            Some(n) if n >= 2 => year.rem_euclid(n) == 0,
+            _ => false,
+        }
+    }
+
+    /// Days in `year`.
+    pub fn year_length(&self, year: i64) -> i64 {
+        self.month_days() + i64::from(self.is_leap(year))
+    }
+
+    /// Day index of the first day of `year`; `None` on overflow.
+    ///
+    /// `(Y−1)·base + ⌊(Y−1)/n⌋` with Euclidean division, which is correct on both sides
+    /// of the epoch: year 0 is a leap year under every rule, and starts one day earlier
+    /// than a bare multiple of the common year would put it.
+    pub fn start_of_year(&self, year: i64) -> Option<i64> {
+        let years = year.checked_sub(1)?;
+        let plain = years.checked_mul(self.month_days())?;
+        match self.leap_every_n {
+            Some(n) if n >= 2 => plain.checked_add(years.div_euclid(n)),
+            _ => Some(plain),
+        }
+    }
+
+    /// The date on `day_index`.
+    pub fn date_of(&self, day_index: i64) -> Date {
+        let base = self.month_days().max(1);
+        let (year, mut rest) = match self.leap_every_n {
+            Some(n) if n >= 2 => {
+                let cycle = n * base + 1;
+                let cycles = day_index.div_euclid(cycle);
+                let within = day_index.rem_euclid(cycle);
+                // Years 1..n−1 of a cycle are common, so plain division finds the year;
+                // the leap day only ever extends the last of them.
+                let year_in_cycle = (within / base).min(n - 1);
+                (
+                    cycles * n + year_in_cycle + 1,
+                    within - year_in_cycle * base,
+                )
+            }
+            _ => (day_index.div_euclid(base) + 1, day_index.rem_euclid(base)),
+        };
+        let leap = self.is_leap(year);
+        let mut position = 0;
+        while position + 1 < self.months.len() {
+            let days = self.days_in(position, leap);
+            if rest < days {
+                break;
+            }
+            rest -= days;
+            position += 1;
+        }
+        let weekday_index = if self.weekdays.is_empty() {
+            0
+        } else {
+            day_index.rem_euclid(self.weekdays.len() as i64) as usize
+        };
+        Date {
+            year,
+            month_index: self.months.get(position).map(|m| m.index).unwrap_or(1),
+            day: rest + 1,
+            weekday_index,
+        }
+    }
+
+    /// The day index of `date`, or `None` if no such day exists.
+    ///
+    /// `weekday_index` is derived, so a wrong one is ignored rather than rejected.
+    pub fn day_index_of(&self, date: Date) -> Option<i64> {
+        let position = self.month_position_by_index(date.month_index)?;
+        let leap = self.is_leap(date.year);
+        if date.day < 1 || date.day > self.days_in(position, leap) {
+            return None;
+        }
+        let start = self.start_of_year(date.year)?;
+        let before: i64 = (0..position).map(|p| self.days_in(p, leap)).sum();
+        start.checked_add(before)?.checked_add(date.day - 1)
+    }
+
+    /// The first month with this `index`.
+    pub fn month_position_by_index(&self, index: i64) -> Option<usize> {
+        self.months.iter().position(|m| m.index == index)
+    }
+
+    /// Day of year (0-based) for a month position and a 1-based day.
+    pub fn day_of_year(&self, position: usize, day: i64, leap: bool) -> i64 {
+        let before: i64 = (0..position.min(self.months.len()))
+            .map(|p| self.days_in(p, leap))
+            .sum();
+        before + (day - 1).max(0)
+    }
+
+    /// Month position and 1-based day for a 0-based day of year.
+    pub fn month_day_of(&self, day_of_year: i64, leap: bool) -> (usize, i64) {
+        let length = (self.month_days() + i64::from(leap)).max(1);
+        let mut rest = day_of_year.rem_euclid(length);
+        let mut position = 0;
+        while position + 1 < self.months.len() {
+            let days = self.days_in(position, leap);
+            if rest < days {
+                break;
+            }
+            rest -= days;
+            position += 1;
+        }
+        (position, rest + 1)
+    }
+
+    /// The first named season covering this 0-based day of year, wrap-around included.
+    pub fn season_of_day(&self, day_of_year: i64) -> Option<&str> {
+        let length = self.month_days().max(1);
+        let doy = day_of_year.rem_euclid(length);
+        for s in &self.seasons {
+            let (Some(start_pos), Some(end_pos)) = (
+                self.month_position(s.start_month),
+                self.month_position(s.end_month),
+            ) else {
+                continue;
+            };
+            let start = self.day_of_year(start_pos, s.start_day, false);
+            let end = self.day_of_year(end_pos, s.end_day, false);
+            let inside = if start <= end {
+                (start..=end).contains(&doy)
+            } else {
+                // Wraps the year end.
+                doy >= start || doy <= end
+            };
+            if inside {
+                return Some(s.name.as_str());
             }
         }
+        None
     }
 
     /// Reads the one calendar and its months and seasons.
