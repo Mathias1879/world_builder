@@ -9,6 +9,7 @@ mod kinds;
 mod seasons;
 mod sky;
 mod system;
+mod templates;
 mod units;
 
 pub use calendar::{CalendarModel, Date, MonthView, SeasonView};
@@ -27,6 +28,7 @@ pub use kinds::{ASTRO_KINDS, boolean, int, number, register_catalog, register_ki
 pub use seasons::{PROPOSAL_LAT_DEG, season_cuts};
 pub use sky::{SkyModel, daily_mean_factor, hour_angle, tidal_amplitude_m};
 pub use system::{BodyView, DEFAULT_DAY_HOURS, DEFAULT_TILT_DEG, DEFAULT_YEAR_DAYS, HomeSettings};
+pub use templates::{ASTRO_TEMPLATES, register_templates};
 pub use units::{
     AU_M, BodyClass, ClassDefaults, EARTH_GRAVITY_MS2, EARTH_RADIUS_KM, G, MIN_STELLAR_MASS_SOLAR,
     SECONDS_PER_HOUR, SOLAR_CONSTANT_W, SOLAR_LUMINOSITY_W, SOLAR_MAGNITUDE, SOLAR_MASS_KG,
@@ -34,12 +36,18 @@ pub use units::{
     mass_from_gravity,
 };
 
-use wb_constraints::{CheckerRegistry, KindCatalog};
+use wb_constraints::{CheckerRegistry, KindCatalog, TemplateRegistry};
 use wb_editlog::EditLog;
 
 /// Wires this subsystem into a world: its kinds, their validators, and its checkers
 /// (spec §5).
-pub fn register(log: &mut EditLog, registry: &mut CheckerRegistry, catalog: &mut KindCatalog) {
+pub fn register(
+    log: &mut EditLog,
+    registry: &mut CheckerRegistry,
+    catalog: &mut KindCatalog,
+    templates: &mut TemplateRegistry,
+) {
+    register_templates(templates);
     register_kinds(log);
     register_catalog(catalog);
     with_astro_checks(registry);

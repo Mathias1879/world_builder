@@ -1,7 +1,7 @@
 //! Every astro finding and suggestion renders real words, not a debug string.
 //!
-//! This is what Fix 1 exists to prove: `wb-constraints`' template table now has a row
-//! for every astro issue and suggestion code, so this walks a handful of fixtures known
+//! This subsystem registers a template for every issue and suggestion code it owns, so
+//! this walks a handful of fixtures known
 //! to raise each one and checks the rendered text for two failure signs: a `{param}`
 //! placeholder that never got filled (meaning the template referenced a key absent from
 //! that finding's params), and the unrendered fallback format itself (`code key=value`),
@@ -11,8 +11,17 @@ mod common;
 
 use common::{add, aethoria, astro_report, earth_system, f, i, named, set, t};
 use wb_astro::SkyModel;
-use wb_constraints::{Finding, Report, Suggestion, render, render_suggestion};
+use wb_constraints::{
+    Finding, Report, Suggestion, TemplateRegistry, render_suggestion_with, render_with,
+};
 use wb_editlog::{EntityId, Value};
+
+/// A registry holding this subsystem's rows — what a real consumer renders through.
+fn astro_templates() -> TemplateRegistry {
+    let mut r = TemplateRegistry::new();
+    wb_astro::register_templates(&mut r);
+    r
+}
 
 /// Fails loudly, naming the code and the raw text, rather than a bare `assert!`.
 fn assert_renders_cleanly(code: &str, text: &str) {
@@ -41,14 +50,17 @@ fn check_report(r: &Report) {
 }
 
 fn check_finding(f: &Finding) {
-    assert_renders_cleanly(f.code.as_str(), &render(f));
+    assert_renders_cleanly(f.code.as_str(), &render_with(&astro_templates(), f));
     for s in &f.suggestions {
         check_suggestion(s);
     }
 }
 
 fn check_suggestion(s: &Suggestion) {
-    assert_renders_cleanly(s.code.as_str(), &render_suggestion(s));
+    assert_renders_cleanly(
+        s.code.as_str(),
+        &render_suggestion_with(&astro_templates(), s),
+    );
 }
 
 #[test]

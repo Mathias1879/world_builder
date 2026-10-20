@@ -374,7 +374,7 @@ fn a_duplicated_month_index_is_reported_and_a_well_formed_calendar_is_not() {
 
 #[test]
 fn registering_wires_up_kinds_validators_and_checkers_in_one_call() {
-    use wb_constraints::{CheckerRegistry, KindCatalog};
+    use wb_constraints::{CheckerRegistry, KindCatalog, TemplateRegistry};
     let mut log = wb_editlog::EditLog::new(
         wb_editlog::ActorId([1; 16]),
         wb_editlog::AuthorId([9; 16]),
@@ -382,7 +382,14 @@ fn registering_wires_up_kinds_validators_and_checkers_in_one_call() {
     );
     let mut registry = CheckerRegistry::new();
     let mut catalog = KindCatalog::with_starter_kinds();
-    wb_astro::register(&mut log, &mut registry, &mut catalog);
+    let mut templates = TemplateRegistry::new();
+    wb_astro::register(&mut log, &mut registry, &mut catalog, &mut templates);
+
+    assert_eq!(
+        templates.len(),
+        wb_astro::ASTRO_TEMPLATES.len(),
+        "every code this subsystem owns brings its own display text"
+    );
 
     assert_eq!(registry.len(), 9, "all nine checkers: {:?}", registry.ids());
     for id in [

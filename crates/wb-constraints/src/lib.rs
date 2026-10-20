@@ -28,4 +28,6 @@ pub use model::{
     Counts, Finding, FindingKind, Grade, IssueCode, NewEntity, Param, Preset, Report, Status,
     Suggestion, Verdict,
 };
-pub use templates::{render, render_suggestion};
+pub use templates::{
+    TemplateRegistry, render, render_suggestion, render_suggestion_with, render_with,
+};
