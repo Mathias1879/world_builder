@@ -257,3 +257,43 @@ fn the_sky_is_legible_all_year() {
         "the companion should approach and recede: {nearest} to {farthest}"
     );
 }
+
+#[test]
+fn moving_sol_secundus_out_clears_every_body_including_the_unflagged() {
+    // The guard for how `astro.move_companion_out` derives its safe separation. It must
+    // come from EVERY sibling's aphelion, not just the flagged ones, because moving the
+    // companion out widens the inner critical radius and re-exposes bodies that were
+    // safely circumbinary before the move.
+    //
+    // Aethoria is the system where the two derivations visibly diverge. From the flagged
+    // bodies alone the outermost aphelion is Frostweaver's 15 AU, which suggests ~54 AU —
+    // and at 54 AU the inner critical radius grows to ~18 AU, putting Shadowkeep (22),
+    // Rimefrost (31) and Voidwalker (79.75) back at risk, so the fix would not clear its
+    // own finding. From every sibling the outermost is Voidwalker's 79.75 AU, which
+    // suggests ~288 AU, where the inner radius is ~96 AU and nothing is left exposed.
+    let mut log = aethoria();
+    let fix = findings(&astro_report(&log), "astro.companion_destabilizes")[0]
+        .suggestions
+        .iter()
+        .find(|s| s.code.as_str() == "astro.move_companion_out")
+        .expect("the move-out fix")
+        .clone();
+
+    let proposed = match fix.params.get("distance_au") {
+        Some(wb_constraints::Param::Float(au)) => *au,
+        other => panic!("expected a distance, got {other:?}"),
+    };
+    assert!(
+        proposed > 200.0,
+        "the safe separation must span every sibling (~288 AU); ~{proposed:.0} AU means \
+         it was derived from the flagged bodies alone"
+    );
+
+    wb_constraints::apply_suggestion(&mut log, &fix).unwrap();
+    let after = astro_report(&log);
+    assert!(
+        findings(&after, "astro.companion_destabilizes").is_empty(),
+        "moving the companion out must clear every body, not only the flagged ones: {:?}",
+        codes(&after)
+    );
+}

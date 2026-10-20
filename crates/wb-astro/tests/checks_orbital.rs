@@ -652,10 +652,11 @@ fn a_circumbinary_body_is_not_flagged_as_destabilized() {
 
 #[test]
 fn moving_the_companion_out_clears_bodies_it_had_not_flagged() {
-    // The regression this guards: `safe` must be derived from EVERY sibling's aphelion,
-    // not only the flagged ones. Deriving it from the flagged subset moves the companion
-    // to a distance whose widened inner critical radius re-exposes the outer bodies that
-    // were previously stable, so the fix would stop clearing its own finding.
+    // Covers the round trip: a circumbinary body is excluded from the finding, and the
+    // move-out fix still clears it afterwards. It does NOT discriminate how `safe` is
+    // derived — this fixture's outer body is clear under either derivation. The guard for
+    // that is `moving_sol_secundus_out_clears_every_body_including_the_unflagged` in
+    // tests/aethoria.rs, where the two derivations differ by a factor of five.
     let mut log = earth_system();
     add(
         &mut log,
