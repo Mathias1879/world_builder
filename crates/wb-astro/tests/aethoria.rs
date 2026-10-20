@@ -94,11 +94,26 @@ fn sol_secundus_is_judged_exactly_as_the_spec_says() {
     // It destabilizes the outer system, naming the bodies at risk with real numbers.
     let destab = findings(&r, "astro.companion_destabilizes");
     assert_eq!(destab.len(), 1, "{:?}", codes(&r));
-    assert!(!destab[0].related.is_empty());
-    assert!(destab[0].related.contains(&named(&log, "Goliath")));
+    // Exactly the three bodies inside the unstable annulus between the two
+    // Holman-Wiegert criteria: 2.00 AU (inner) and 15.90 AU (outer) for this pair.
+    for name in ["Goliath", "Stormheart", "Frostweaver"] {
+        assert!(
+            destab[0].related.contains(&named(&log, name)),
+            "{name} sits in the unstable band and should be named"
+        );
+    }
+    // The outer three orbit the pair, not one star: circumbinary and stable. Reporting
+    // them would tell a world-builder a sun at 6 AU wrecks a planet at 55 AU.
+    for name in ["Shadowkeep", "Rimefrost", "Voidwalker"] {
+        assert!(
+            !destab[0].related.contains(&named(&log, name)),
+            "{name} is circumbinary and stable, so it must not be named"
+        );
+    }
+    assert_eq!(destab[0].related.len(), 3);
     assert!(
         !destab[0].related.contains(&wb_editlog::EntityId::PLANET),
-        "Aethoria itself is inside the critical distance and survives"
+        "Aethoria itself is inside the inner critical distance and survives"
     );
 
     // And "it returns every year" contradicts a 6 AU orbit.

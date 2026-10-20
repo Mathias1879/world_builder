@@ -4,7 +4,9 @@ use common::{
     add, add_aethorian_calendar, aethoria, astro_report, codes, earth_system, f, findings, i,
     named, new_log, set, t,
 };
-use wb_astro::{critical_distance_m, hill_radius_m, roche_limit_m, simple_ratio};
+use wb_astro::{
+    critical_distance_m, critical_fraction_outer, hill_radius_m, roche_limit_m, simple_ratio,
+};
 use wb_constraints::{FindingKind, Param};
 use wb_editlog::{EntityId, Value};
 
@@ -598,4 +600,93 @@ fn an_unreadable_system_produces_no_findings_and_no_panic() {
     );
     // The entities still get verdicts, just empty ones.
     assert!(r.verdicts.iter().any(|v| v.kind == "astro.body"));
+}
+
+#[test]
+fn the_published_outer_criterion_gives_the_published_number() {
+    // Holman & Wiegert 1999's P-type (circumbinary) critical distance. For the Aethorian
+    // pair — mass ratio 0.33/1.53 and eccentricity 0.1 — it is 2.650 separations.
+    close(critical_fraction_outer(0.33 / 1.53, 0.1), 2.650, 0.01);
+    // A heavier or more eccentric pair pushes the stable circumbinary region further out.
+    assert!(critical_fraction_outer(0.5, 0.4) > critical_fraction_outer(0.1, 0.0));
+    assert!(critical_fraction_outer(f64::NAN, 0.1).is_finite());
+}
+
+#[test]
+fn a_circumbinary_body_is_not_flagged_as_destabilized() {
+    let mut log = earth_system();
+    add(
+        &mut log,
+        "astro.star",
+        vec![
+            ("name", t("Intruder")),
+            ("role", t("companion")),
+            ("mass_solar", f(0.8)),
+            ("distance_au", f(2.0)),
+        ],
+    );
+    // Far outside the pair: circumbinary, and stable. The S-type criterion alone would
+    // flag it, because its aphelion is past the inner critical distance.
+    add(
+        &mut log,
+        "astro.body",
+        vec![
+            ("name", t("Outsider")),
+            ("order", i(9)),
+            ("class", t("ice_giant")),
+            ("distance_au", f(60.0)),
+        ],
+    );
+    let r = astro_report(&log);
+    let found = findings(&r, "astro.companion_destabilizes");
+    assert_eq!(found.len(), 1, "{:?}", codes(&r));
+    assert!(
+        !found[0].related.contains(&named(&log, "Outsider")),
+        "a body orbiting well outside the pair is circumbinary, not at risk"
+    );
+    assert!(
+        found[0].related.contains(&EntityId::PLANET),
+        "the home world, inside the unstable annulus, still is"
+    );
+}
+
+#[test]
+fn moving_the_companion_out_clears_bodies_it_had_not_flagged() {
+    // The regression this guards: `safe` must be derived from EVERY sibling's aphelion,
+    // not only the flagged ones. Deriving it from the flagged subset moves the companion
+    // to a distance whose widened inner critical radius re-exposes the outer bodies that
+    // were previously stable, so the fix would stop clearing its own finding.
+    let mut log = earth_system();
+    add(
+        &mut log,
+        "astro.star",
+        vec![
+            ("name", t("Intruder")),
+            ("role", t("companion")),
+            ("mass_solar", f(0.8)),
+            ("distance_au", f(2.0)),
+        ],
+    );
+    add(
+        &mut log,
+        "astro.body",
+        vec![
+            ("name", t("Outsider")),
+            ("order", i(9)),
+            ("class", t("ice_giant")),
+            ("distance_au", f(60.0)),
+        ],
+    );
+    let r = astro_report(&log);
+    let fix = findings(&r, "astro.companion_destabilizes")[0]
+        .suggestions
+        .iter()
+        .find(|s| s.code.as_str() == "astro.move_companion_out")
+        .expect("the move-out fix")
+        .clone();
+    wb_constraints::apply_suggestion(&mut log, &fix).unwrap();
+    assert!(
+        findings(&astro_report(&log), "astro.companion_destabilizes").is_empty(),
+        "moving out must clear every body, including ones it had not flagged"
+    );
 }

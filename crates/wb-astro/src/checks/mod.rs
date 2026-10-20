@@ -8,7 +8,7 @@ mod world;
 pub use calendar::CalendarCheck;
 pub use orbital::{
     BeltCheck, CompanionCheck, MoonCheck, OrbitCheck, OrderingCheck, critical_distance_m,
-    critical_fraction, hill_radius_m, roche_limit_m, simple_ratio,
+    critical_fraction, critical_fraction_outer, hill_radius_m, roche_limit_m, simple_ratio,
 };
 pub use world::{
     BodyCheck, ClimateCheck, HABITABLE_K, SpinCheck, equilibrium_temperature_k, locking_time_s,

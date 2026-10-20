@@ -35,6 +35,26 @@ pub fn critical_fraction(mass_ratio: f64, eccentricity: f64) -> f64 {
     }
 }
 
+/// Holman–Wiegert (1999) critical semi-major axis for a **P-type** (circumbinary) orbit,
+/// as a fraction of the binary separation.
+///
+/// The companion-stability criterion needs both bounds, not one. [`critical_fraction`]
+/// gives the inner limit, below which a body orbits one star safely; this gives the outer
+/// limit, beyond which a body orbits the pair safely. Only the annulus between them is
+/// unstable — without this bound the checker reports a body at 55 AU as destabilized by a
+/// companion at 6 AU, which is simply wrong.
+pub fn critical_fraction_outer(mass_ratio: f64, eccentricity: f64) -> f64 {
+    let u = mass_ratio.clamp(0.0, 1.0);
+    let e = eccentricity.clamp(0.0, 0.95);
+    let fraction = 1.60 + 5.10 * e - 2.22 * e * e + 4.12 * u - 4.27 * e * u - 5.09 * u * u
+        + 4.61 * e * e * u * u;
+    if fraction.is_finite() {
+        fraction.max(0.0)
+    } else {
+        0.0
+    }
+}
+
 /// The critical distance itself: the separation times [`critical_fraction`].
 pub fn critical_distance_m(separation_m: f64, mass_ratio: f64, eccentricity: f64) -> f64 {
     let d = separation_m * critical_fraction(mass_ratio, eccentricity);
@@ -153,13 +173,25 @@ impl Checker for CompanionCheck {
             let ratio = star.mass_kg / (star.mass_kg + primary.mass_kg).max(f64::MIN_POSITIVE);
             let fraction = critical_fraction(ratio, star.eccentricity);
             let critical = critical_distance_m(star.a_m, ratio, star.eccentricity);
-            let at_risk: Vec<&BodyView> = siblings(&sky, Some(primary.id))
-                .into_iter()
-                .filter(|b| b.id != star.id && b.aphelion_m() > critical)
+            let outer = star.a_m * critical_fraction_outer(ratio, star.eccentricity);
+            let family = siblings(&sky, Some(primary.id));
+            // Only the annulus between the two criteria is unstable: inside `critical` a
+            // body orbits the primary alone, beyond `outer` it orbits the pair.
+            let at_risk: Vec<&BodyView> = family
+                .iter()
+                .copied()
+                .filter(|b| {
+                    b.id != star.id && b.aphelion_m() > critical && b.perihelion_m() < outer
+                })
                 .collect();
             if !at_risk.is_empty() {
-                let outermost = at_risk
+                // Over EVERY sibling, not just the flagged ones: moving the companion out
+                // widens `critical`, which would re-expose bodies that were safely
+                // circumbinary before the move and leave the fix not clearing its own
+                // finding.
+                let outermost = family
                     .iter()
+                    .filter(|b| b.id != star.id)
                     .map(|b| b.aphelion_m())
                     .fold(0.0_f64, f64::max);
                 let names = at_risk
@@ -186,6 +218,7 @@ impl Checker for CompanionCheck {
                 }
                 let mut f = Finding::issue(self.id(), "astro.companion_destabilizes", 0.9)
                     .with_param("critical_au", au(critical))
+                    .with_param("outer_critical_au", au(outer))
                     .with_param("distance_au", au(star.a_m))
                     .with_param("bodies", Param::Text(names))
                     .with_param("count", Param::Int(at_risk.len() as i64))

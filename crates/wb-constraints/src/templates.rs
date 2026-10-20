@@ -28,7 +28,7 @@ fn template(code: &str) -> Option<&'static str> {
         // properly layered home for these (recorded as a follow-up); for now they live
         // here, which is better than no explanation at all.
         "astro.companion_destabilizes" => {
-            "A companion star at {distance_au} AU reaches past {critical_au} AU, destabilizing {count} other bodies ({bodies})."
+            "A companion star at {distance_au} AU leaves orbits between {critical_au} and {outer_critical_au} AU unstable; {count} bodies sit in that band ({bodies})."
         }
         "astro.companion_period_mismatch" => {
             "A stated period of {stated_period_years} years and an implied distance of {implied_distance_au} AU disagree with each other."

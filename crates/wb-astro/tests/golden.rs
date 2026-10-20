@@ -2,13 +2,23 @@
 //! hashed bit-for-bit; the same hash must come out on aarch64, wasm32-wasip1 and
 //! x86_64-musl (`scripts/ci-local.sh` runs all three). Update GOLDEN_SKY in the same
 //! commit as any intentional change to the physics.
+//!
+//! `GOLDEN_REPORT_ASTRO` does the same for the verdict side. `GOLDEN_SKY` pins what
+//! `SkyModel` computes, but every checker-side float — mean stellar flux, equilibrium
+//! temperature, locking time, Hill radius, Roche limit, and every AU figure a finding
+//! carries — is produced after that and would otherwise sit outside the gate. `Report`
+//! already hashes `postcard(verdicts)`, and postcard writes an `f64` as eight exact
+//! bytes, so hashing the report pins all of it.
 
 mod common;
 
-use common::aethoria;
+use common::{aethoria, astro_report};
 use wb_astro::SkyModel;
 use wb_grid::LatLon;
 use wb_world::to_hex;
+
+const GOLDEN_REPORT_ASTRO: &str =
+    "efeb71c07275da80256bcd41736e938f7f5eeef1b32d267d3802d08d04cd7248";
 
 const GOLDEN_SKY: &str = "a854cd7eeacb6073cbfd281eb70bd19991a133d3f957462a2c8c2c2ca7065051";
 
@@ -108,4 +118,15 @@ fn value_bytes(h: &mut blake3::Hasher, v: &wb_editlog::Value) {
             h.update(format!("{other:?}").as_bytes());
         }
     }
+}
+
+#[test]
+fn golden_astro_report() {
+    // The whole verdict side of the subsystem, for the reference world: every finding's
+    // code, kind, badness, params and suggestions, in `EntityId` order.
+    let got = to_hex(&astro_report(&aethoria()).hash);
+    assert_eq!(
+        got, GOLDEN_REPORT_ASTRO,
+        "astro verdicts changed; if intentional, set GOLDEN_REPORT_ASTRO = \"{got}\""
+    );
 }
