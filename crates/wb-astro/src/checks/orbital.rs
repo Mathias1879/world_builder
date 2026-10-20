@@ -138,18 +138,18 @@ impl Checker for CompanionCheck {
         if star.is_primary_star {
             return Vec::new();
         }
-        // An object under the hydrogen-fusion limit is not a star, so it cannot
-        // destabilize anything as one; this is the gate `astro.demote_companion` has to
-        // clear for the fix to actually work.
-        if star.mass_kg < MIN_STELLAR_MASS_SOLAR * SOLAR_MASS_KG {
-            return Vec::new();
-        }
         let primary = sky.primary_star();
         let mut out = Vec::new();
 
         // Stability: everything orbiting the primary beyond the critical distance is at
         // risk, and so is anything inside the companion's own reach.
-        if star.a_m > 0.0 {
+        //
+        // An object under the hydrogen-fusion limit is not a star, so it cannot
+        // destabilize anything as one; this is the gate `astro.demote_companion` has to
+        // clear for the fix to actually work. It applies only to this block: the
+        // period/distance consistency check below is pure Kepler arithmetic and has
+        // nothing to do with whether the companion fuses hydrogen.
+        if star.a_m > 0.0 && star.mass_kg >= MIN_STELLAR_MASS_SOLAR * SOLAR_MASS_KG {
             let ratio = star.mass_kg / (star.mass_kg + primary.mass_kg).max(f64::MIN_POSITIVE);
             let fraction = critical_fraction(ratio, star.eccentricity);
             let critical = critical_distance_m(star.a_m, ratio, star.eccentricity);

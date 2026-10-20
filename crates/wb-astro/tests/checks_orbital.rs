@@ -142,6 +142,37 @@ fn applying_the_demotion_also_clears_the_finding() {
 }
 
 #[test]
+fn a_sub_stellar_companion_is_still_judged_on_its_period() {
+    let mut log = earth_system();
+    // Below the 0.08 solar-mass fusion limit, so it cannot destabilize anything as a
+    // star — but 40 AU and a one-year period still contradict each other, and that is
+    // arithmetic, not astrophysics.
+    add(
+        &mut log,
+        "astro.star",
+        vec![
+            ("name", t("Brown Dwarf")),
+            ("role", t("companion")),
+            ("mass_solar", f(0.05)),
+            ("distance_au", f(40.0)),
+            ("period_years", f(1.0)),
+        ],
+    );
+    let r = astro_report(&log);
+    assert!(
+        findings(&r, "astro.companion_destabilizes").is_empty(),
+        "a sub-stellar object cannot destabilize the system as a star: {:?}",
+        codes(&r)
+    );
+    assert_eq!(
+        findings(&r, "astro.companion_period_mismatch").len(),
+        1,
+        "its stated period still contradicts its stated distance: {:?}",
+        codes(&r)
+    );
+}
+
+#[test]
 fn moving_a_period_only_companion_out_does_not_raise_a_new_mismatch() {
     let mut log = earth_system();
     // Only a period is stated — no distance — so the fix has to add a distance beside
