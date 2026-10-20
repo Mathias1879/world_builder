@@ -40,6 +40,33 @@ pub fn mean_stellar_flux(sky: &SkyModel) -> f64 {
     total / FLUX_SAMPLES as f64
 }
 
+/// Mean flux at the home world from one star over a year, W·m⁻².
+///
+/// Same fixed [`FLUX_SAMPLES`] sweep as [`mean_stellar_flux`], restricted to a single
+/// star, so the two are directly comparable.
+pub fn mean_flux_from(sky: &SkyModel, star: EntityId) -> f64 {
+    let year = sky.year_days();
+    let mut total = 0.0;
+    for k in 0..FLUX_SAMPLES {
+        let day = year * k as f64 / FLUX_SAMPLES as f64;
+        let Some(body) = sky.body(star) else { continue };
+        let Some(luminosity) = body.luminosity_w else {
+            continue;
+        };
+        let Some(to_star) = sky.position(star, day) else {
+            continue;
+        };
+        let d = to_star.length();
+        if d > 0.0 {
+            let f = luminosity / (4.0 * PI * d * d);
+            if f.is_finite() {
+                total += f;
+            }
+        }
+    }
+    total / FLUX_SAMPLES as f64
+}
+
 /// `T = ((1 − A)·S / 4σ)^¼`.
 pub fn equilibrium_temperature_k(flux: f64, albedo: f64) -> f64 {
     if !flux.is_finite() || flux <= 0.0 {
@@ -194,7 +221,19 @@ impl Checker for ClimateCheck {
         if let Some(luminosity) = primary.luminosity_w {
             let absorbed = (1.0 - home.albedo.clamp(0.0, 1.0)).max(f64::MIN_POSITIVE);
             let needed = 4.0 * STEFAN_BOLTZMANN * libm::pow(target, 4.0) / absorbed;
-            let distance = (luminosity / (4.0 * PI * needed)).sqrt();
+            let primary_only = (luminosity / (4.0 * PI * needed)).sqrt();
+            // The primary-only distance would overshoot in a multi-star system, because
+            // the other stars also contribute. Treating each star's share of the total as
+            // roughly constant, the distance that lands the TOTAL flux on target is the
+            // primary-only one scaled by sqrt(total / primary_share) — a second fixed-cost
+            // sweep, no iteration, so it stays deterministic.
+            let share = mean_flux_from(&sky, primary.id);
+            let scale = if share > 0.0 && flux.is_finite() && flux >= share {
+                (flux / share).sqrt()
+            } else {
+                1.0
+            };
+            let distance = primary_only * scale;
             let period = crate::kepler::period_s(distance, primary.mass_kg);
             let year_days = period / (sky.day_hours() * SECONDS_PER_HOUR);
             if year_days.is_finite() && year_days > 0.0 {
@@ -203,10 +242,10 @@ impl Checker for ClimateCheck {
                     vec![
                         ("year_days", Param::Float(year_days)),
                         ("distance_au", Param::Float(distance / AU_M)),
-                        // Explicit, not implied: this retuning is computed from the
-                        // primary star's flux alone, so a two-sun world is not misled
-                        // by a bare number that quietly ignores its second sun.
-                        ("basis", Param::Text("primary star only".to_string())),
+                        // Every star counted, not just the primary: the
+                        // primary-only distance is scaled by sqrt(total/share) so a
+                        // two-sun world's second sun is not quietly ignored.
+                        ("basis", Param::Text("all stars".to_string())),
                     ],
                     vec![(
                         EntityId::PLANET,

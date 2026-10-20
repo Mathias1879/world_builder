@@ -17,8 +17,12 @@ use wb_astro::SkyModel;
 use wb_grid::LatLon;
 use wb_world::to_hex;
 
+// Last changed 2026-10-20: `astro.move_companion_out` now clears a stated period
+// whenever one exists, not only when no distance was stated, so Sol Secundus's
+// suggestion carries a second write. Verified by reverting the change — the
+// aethoria test then fails with the mismatch still present.
 const GOLDEN_REPORT_ASTRO: &str =
-    "efeb71c07275da80256bcd41736e938f7f5eeef1b32d267d3802d08d04cd7248";
+    "394c3b538bd09780baaf80b4611804cc7c0c74f7904d587ae5ae3aaf18a5813a";
 
 const GOLDEN_SKY: &str = "a854cd7eeacb6073cbfd281eb70bd19991a133d3f957462a2c8c2c2ca7065051";
 

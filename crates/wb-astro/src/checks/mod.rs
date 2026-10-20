@@ -12,7 +12,7 @@ pub use orbital::{
 };
 pub use world::{
     BodyCheck, ClimateCheck, HABITABLE_K, SpinCheck, equilibrium_temperature_k, locking_time_s,
-    mean_stellar_flux,
+    mean_flux_from, mean_stellar_flux,
 };
 
 use std::collections::BTreeMap;

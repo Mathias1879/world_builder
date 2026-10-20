@@ -16,7 +16,7 @@ pub use checks::{
     BeltCheck, BodyCheck, CalendarCheck, ClimateCheck, CompanionCheck, HABITABLE_K, MoonCheck,
     OrbitCheck, OrderingCheck, SpinCheck, critical_distance_m, critical_fraction,
     critical_fraction_outer, equilibrium_temperature_k, hill_radius_m, locking_time_s,
-    mean_stellar_flux, roche_limit_m, simple_ratio, with_astro_checks,
+    mean_flux_from, mean_stellar_flux, roche_limit_m, simple_ratio, with_astro_checks,
 };
 pub use error::AstroError;
 pub use kepler::{

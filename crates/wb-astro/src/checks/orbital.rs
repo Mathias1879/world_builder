@@ -213,7 +213,10 @@ impl Checker for CompanionCheck {
                 // in the same transaction is the `BodyCheck` null-write pattern, applied
                 // here so the fix clears the finding it was offered for and nothing else.
                 let mut move_out_writes = write(star.id, "distance_au", Value::Float(safe / AU_M));
-                if star.stated_period_s.is_some() && star.stated_a_m.is_none() {
+                // Whenever a period was stated at all — alone or beside a distance — it
+                // is stale once the distance moves, and `resolve` prefers the distance,
+                // so leaving it strands a value that re-raises the period mismatch.
+                if star.stated_period_s.is_some() {
                     move_out_writes.push((star.id, "period_years".to_string(), Value::Null));
                 }
                 let mut f = Finding::issue(self.id(), "astro.companion_destabilizes", 0.9)

@@ -297,3 +297,38 @@ fn moving_sol_secundus_out_clears_every_body_including_the_unflagged() {
         codes(&after)
     );
 }
+
+#[test]
+fn moving_out_a_companion_that_stated_both_clears_the_stale_period() {
+    // Sol Secundus states a distance (6 AU) AND a period (the lore's "returns every
+    // year"). Moving it out rewrites the distance, and `resolve` prefers a stated
+    // distance — so the old period is left behind contradicting the new orbit and
+    // re-raises `astro.companion_period_mismatch`. The move-out fix has to clear it in
+    // the same transaction, or one finding is simply traded for another.
+    let mut log = aethoria();
+    let before = astro_report(&log);
+    assert_eq!(
+        findings(&before, "astro.companion_period_mismatch").len(),
+        1
+    );
+
+    let fix = findings(&before, "astro.companion_destabilizes")[0]
+        .suggestions
+        .iter()
+        .find(|s| s.code.as_str() == "astro.move_companion_out")
+        .expect("the move-out fix")
+        .clone();
+    wb_constraints::apply_suggestion(&mut log, &fix).unwrap();
+
+    let after = astro_report(&log);
+    assert!(
+        findings(&after, "astro.companion_destabilizes").is_empty(),
+        "the move should clear what it was offered for: {:?}",
+        codes(&after)
+    );
+    assert!(
+        findings(&after, "astro.companion_period_mismatch").is_empty(),
+        "and must not strand the stated period: {:?}",
+        codes(&after)
+    );
+}
